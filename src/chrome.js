@@ -127,7 +127,29 @@ export class ChromeSession {
     this.nextId = 1;
     this.pending = new Map();
     this.eventWaiters = new Map();
+    // Fan-out event listeners: method -> Set<fn>. Unlike `eventWaiters`
+    // (one-shot, first-wins), these persist and ALL fire on every matching
+    // CDP event. Added for the Coinbase recon/stream tools (Step 3/4) which
+    // must observe many WebSocket frames per event, not just the first.
+    // Newman, "Building Microservices" (Ch. 4 on event-driven collaboration):
+    // a fan-out/pub-sub listener model decouples producers (the CDP socket)
+    // from multiple independent consumers (gap detector, normalizer, sinks).
+    this.eventListeners = new Map();
     this.ws = null;
+  }
+
+  // Subscribe a persistent listener to a CDP event. Returns an unsubscribe fn.
+  on(method, fn) {
+    const set = this.eventListeners.get(method) ?? new Set();
+    set.add(fn);
+    this.eventListeners.set(method, set);
+    return () => {
+      const current = this.eventListeners.get(method);
+      if (current) {
+        current.delete(fn);
+        if (current.size === 0) this.eventListeners.delete(method);
+      }
+    };
   }
 
   async connect() {
@@ -209,6 +231,15 @@ export class ChromeSession {
 
   #onMessage(data) {
     const message = JSON.parse(data.toString());
+
+    // Fan-out persistent listeners fire for EVERY matching event (and do not
+    // consume the event for one-shot waiters below).
+    if (message.method && this.eventListeners.has(message.method)) {
+      for (const fn of this.eventListeners.get(message.method)) {
+        try { fn(message.params); } catch { /* listener errors must not kill the socket */ }
+      }
+    }
+
     if (message.method && this.eventWaiters.has(message.method)) {
       const waiters = this.eventWaiters.get(message.method);
       const waiter = waiters.shift();

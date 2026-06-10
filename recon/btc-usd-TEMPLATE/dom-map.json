@@ -1,0 +1,41 @@
+{
+  "_comment": "TEMPLATE — illustrates the shape coinbase_recon produces. The real file is written per-run from live DOM probing. Locators are ranked: stability 1=data-testid, 2=role+name, 3=class-fragment, 4=textContent (Newman, Building Microservices, Ch.5).",
+  "capturedAt": "<ISO timestamp>",
+  "url": "https://www.coinbase.com/advanced-trade/spot/BTC-USD",
+  "title": "BTC-USD | Coinbase Advanced",
+  "orderPanel": {
+    "buySellToggle": {
+      "name": "buySellToggle", "found": true, "textSample": "Buy Sell",
+      "bbox": { "x": 0, "y": 0, "w": 0, "h": 0 }, "parentLandmark": "[data-testid=\"order-form\"]",
+      "locators": [
+        { "strategy": "data-testid", "selector": "[data-testid=\"order-side-toggle\"]", "stability": 1 },
+        { "strategy": "role+name", "selector": "role=tablist name=\"order side\"", "stability": 2 },
+        { "strategy": "textContent", "selector": "text=\"Buy\"", "stability": 4 }
+      ]
+    },
+    "orderTypeSelector": { "name": "orderTypeSelector", "found": true, "locators": [ { "strategy": "data-testid", "selector": "[data-testid=\"order-type-selector\"]", "stability": 1 } ] },
+    "amountInput": { "name": "amountInput", "found": true, "locators": [ { "strategy": "data-testid", "selector": "[data-testid=\"order-amount-input\"] input", "stability": 1 } ] },
+    "quoteCurrencyToggle": { "name": "quoteCurrencyToggle", "found": true, "locators": [ { "strategy": "role+name", "selector": "role=button name=\"USD\"", "stability": 2 } ] },
+    "placeOrderButton": { "name": "placeOrderButton", "found": true, "locators": [ { "strategy": "data-testid", "selector": "[data-testid=\"place-order-button\"]", "stability": 1 } ] }
+  },
+  "orderBook": {
+    "container": { "name": "orderBookContainer", "found": true },
+    "bidSide": { "name": "bidSide", "found": true },
+    "askSide": { "name": "askSide", "found": true },
+    "midPrice": { "name": "midPrice", "found": true },
+    "spread": { "name": "spread", "found": true }
+  },
+  "chart": { "name": "chartContainer", "found": true, "isIframe": false, "isCanvas": true },
+  "tradesTape": { "name": "recentTrades", "found": true },
+  "portfolio": {
+    "widget": { "name": "portfolioWidget", "found": true },
+    "usdBalance": { "name": "usdBalance", "found": true },
+    "btcBalance": { "name": "btcBalance", "found": true },
+    "available": { "name": "available", "found": true },
+    "holds": { "name": "holds", "found": true }
+  },
+  "tabs": {
+    "openOrders": { "name": "openOrdersTab", "found": true },
+    "orderHistory": { "name": "orderHistoryTab", "found": true }
+  }
+}

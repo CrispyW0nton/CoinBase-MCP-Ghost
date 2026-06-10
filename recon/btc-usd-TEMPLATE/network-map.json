@@ -1,0 +1,30 @@
+{
+  "_comment": "TEMPLATE — illustrates the shape coinbase_recon produces. The real file is written per-run to recon/btc-usd-<ts>/network-map.json from live observation.",
+  "capturedAt": "<ISO timestamp>",
+  "networkSeconds": 60,
+  "sampleSeconds": 30,
+  "webSockets": [
+    {
+      "url": "wss://advanced-trade-ws.coinbase.com",
+      "subscribeFrames": [
+        "{\"type\":\"subscribe\",\"channel\":\"level2\",\"product_ids\":[\"BTC-USD\"],\"jwt\":\"<redacted-by-coinbase-not-stored>\"}",
+        "{\"type\":\"subscribe\",\"channel\":\"market_trades\",\"product_ids\":[\"BTC-USD\"]}",
+        "{\"type\":\"subscribe\",\"channel\":\"ticker\",\"product_ids\":[\"BTC-USD\"]}",
+        "{\"type\":\"subscribe\",\"channel\":\"heartbeats\"}"
+      ],
+      "channels": {
+        "heartbeats": { "count": 30, "sampleKeys": ["channel", "client_id", "timestamp", "sequence_num", "events"], "sampleFrameBytes": 180 },
+        "ticker": { "count": 120, "sampleKeys": ["channel", "client_id", "timestamp", "sequence_num", "events"], "sampleFrameBytes": 420 },
+        "level2": { "count": 2400, "sampleKeys": ["channel", "client_id", "timestamp", "sequence_num", "events"], "sampleFrameBytes": 650 },
+        "market_trades": { "count": 90, "sampleKeys": ["channel", "client_id", "timestamp", "sequence_num", "events"], "sampleFrameBytes": 540 },
+        "candles": { "count": 30, "sampleKeys": ["channel", "client_id", "timestamp", "sequence_num", "events"], "sampleFrameBytes": 300 },
+        "user": { "count": 0, "sampleKeys": null, "sampleFrameBytes": 0 }
+      }
+    }
+  ],
+  "rest": {
+    "/api/v3/brokerage/products/BTC-USD": { "method": "GET", "count": 2, "sampleQuery": null },
+    "/api/v3/brokerage/accounts": { "method": "GET", "count": 1, "sampleQuery": "?limit=250" }
+  },
+  "contentSecurityPolicy": "<captured CSP header string; main-world Runtime.evaluate is not blocked by CSP>"
+}

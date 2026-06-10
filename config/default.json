@@ -1,0 +1,11 @@
+{
+  "mode": "OBSERVE_ONLY",
+  "symbol": "BTC-USD",
+  "debugUrl": "http://127.0.0.1:9222",
+  "tabUrlContains": [
+    "coinbase.com/advanced-trade",
+    "coinbase.com/advanced-portfolio"
+  ],
+  "maxNotionalUsd": 0,
+  "killSwitch": true
+}

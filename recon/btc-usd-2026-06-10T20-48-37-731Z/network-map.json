@@ -1,0 +1,24 @@
+{
+  "capturedAt": "2026-06-10T20:49:44.477Z",
+  "networkSeconds": 60,
+  "sampleSeconds": 30,
+  "webSockets": [],
+  "rest": {
+    "/api/v3/brokerage/user_chart_config/BTC-USD": {
+      "method": "POST",
+      "count": 2,
+      "sampleQuery": null
+    },
+    "/api/v3/coinbase.killswitch.KillSwitchService/KillSwitches": {
+      "method": "GET",
+      "count": 2,
+      "sampleQuery": "?q=eyJzY29wZSI6ImNvbnN1bWVyIiwicGxhdGZvcm0iOiJ3ZWIiLCJ2ZXJzaW9uIjoiNTM3Yjk1MWM0NTQxZDVjMzAwZGRlNTE3M2FkN2U2MmYwZjY0ZWIxMSJ9"
+    },
+    "/api/v3/brokerage/products/BTC-USD/trades": {
+      "method": "GET",
+      "count": 1,
+      "sampleQuery": "?limit=100&update_interval=TWO_HUNDRED_FIFTY_MS_MARKET_TRADES"
+    }
+  },
+  "contentSecurityPolicy": "script-src 'report-sample' 'nonce-64l_3Nj6gbNPLjyN2RUk8A' 'unsafe-inline';object-src 'none';base-uri 'self';report-uri /gp/p/_/InstantbuyFrontendHttp/cspreport;worker-src 'self', script-src 'unsafe-inline' 'unsafe-eval' blob: data: 'self' https://apis.google.com https://ssl.gstatic.com https://www.google.com https://www.googletagmanager.com https://www.gstatic.com https://www.google-analytics.com;report-uri /gp/p/_/InstantbuyFrontendHttp/cspreport/allowlist, script-src 'unsafe-inline' 'unsafe-eval' blob: data:;report-uri /gp/p/_/InstantbuyFrontendHttp/cspreport/fine-allowlist, require-trusted-types-for 'script';report-uri /gp/p/_/InstantbuyFrontendHttp/cspreport"
+}

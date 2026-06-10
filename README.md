@@ -1,180 +1,167 @@
-# Chrome Course MCP
+# coinbase-mcp-ghost
 
-Chrome Course MCP is a local Model Context Protocol server that lets Codex inspect a Chrome tab through the Chrome DevTools Protocol. The initial target workflow is collecting authorized Brightspace course material into local course folders: module page HTML/PDF snapshots, manifests of content links, and direct downloadable media/document URLs.
+A local, **read-only** Model Context Protocol (MCP) server that attaches — as a
+"ghost" — to an **already-open, already-signed-in** Coinbase Advanced Trade tab
+over the Chrome DevTools Protocol (CDP), and performs **market-data and
+portfolio reconnaissance**. It opens no socket of its own, holds no
+credentials, and places **no orders**. Pass 2 also adds an inert signal layer,
+PAPER P&L ledger, preview reconciliation, and a stubbed LIVE confirmation tool.
 
-It does not bypass access controls, DRM, or streaming restrictions. Use it only with course materials and sites you are authorized to access.
+> Forked from `chrome-course-mcp` (a Brightspace page collector). The JSON-RPC
+> stdio shell and the `ChromeSession` CDP client are reused as-is and extended.
 
-## Install
+---
+
+## Why "ghost"
+
+The MCP never logs in, never sees your password/2FA, never touches the Coinbase
+REST API, never copies cookies/JWTs out of Chrome, and never opens a second
+WebSocket. It simply **mirrors what your signed-in browser tab already
+receives** (`Network.webSocketFrameReceived` over CDP). That means:
+
+- **No auth flow** to break or leak.
+- **No duplicate connection** and **no rate-limit risk** — you see exactly what
+  the page sees. If Chrome does not expose WS frames for the current Coinbase
+  build, `coinbase_market_stream` marks `domFallback:true` and samples the
+  live-changing rendered order book instead; still no Coinbase API, SDK, or
+  socket is opened by this MCP.
+- **Fail-closed:** if no Advanced Trade tab is open in the dedicated debug
+  profile, every tool refuses to run rather than acting on an unrelated tab.
+
+---
+
+## Prerequisites
+
+- **Node ≥ 20**
+- **Windows host** with **Google Chrome**
+- A Coinbase account you can sign in to
+
+Install deps:
 
 ```powershell
 npm install
 ```
 
-## Start Chrome For MCP Access
+---
 
-Use a dedicated Chrome profile so the debugging port is available without disturbing your normal browser session:
+## One-time Coinbase login flow (dedicated debug profile)
 
-```powershell
-& "C:\Program Files\Google\Chrome\Application\chrome.exe" `
-  --remote-debugging-port=9222 `
-  --user-data-dir="$env:LOCALAPPDATA\ChromeMCPProfile"
-```
-
-Log in to Brightspace in that Chrome window and open the course page, for example:
-
-```text
-https://online.academyart.edu/d2l/home/90511
-```
-
-You can also run:
+The MCP only ever attaches to a **dedicated** Chrome profile launched with the
+DevTools port open — never your everyday profile.
 
 ```powershell
-.\scripts\launch-chrome-mcp.ps1
+# Launches Chrome on --remote-debugging-port=9222 with a dedicated profile
+# (%LOCALAPPDATA%\CoinbaseMCPProfile) and opens Coinbase.
+powershell -ExecutionPolicy Bypass -File scripts\launch-chrome-coinbase.ps1
 ```
 
-Or open a target site directly in that debuggable profile:
+1. Open either `https://www.coinbase.com/advanced-portfolio` or
+   `https://www.coinbase.com/advanced-trade/spot/BTC-USD`.
+2. **Log in to Coinbase in this window once** (complete any 2FA).
+3. Close the window normally when you're done — the profile **persists the
+   session**, so next launch you're usually still signed in.
 
-```powershell
-.\scripts\launch-chrome-mcp.ps1 "https://www.tripo3d.ai/"
+Leave this window open while you use the MCP.
+
+---
+
+## MCP client config (Codex / Claude / any MCP host)
+
+```jsonc
+{
+  "mcpServers": {
+    "coinbase-mcp-ghost": {
+      "command": "node",
+      "args": ["./src/index.js"],
+      "cwd": "C:\\path\\to\\CoinBase-MCP-Ghost"
+      // or, if installed globally / linked:
+      // "command": "coinbase-mcp"
+    }
+  }
+}
 ```
 
-## Add To Codex
+> This mirrors the old `chrome-course-mcp` block but with the new bin/path.
 
-Add this MCP server to your Codex MCP config, adjusting the path if needed:
-
-```toml
-[mcp_servers.chrome_course_mcp]
-command = "node"
-args = ["C:\\Users\\NewAdmin\\Documents\\GDeveloper\\Workspaces\\ChromeMCP\\src\\index.js"]
-```
-
-Restart Codex after editing the config.
+---
 
 ## Tools
 
-### `chrome_tabs`
+**Generic Chrome primitives (kept):** `chrome_launch`, `chrome_open_tab`,
+`chrome_tabs`, `chrome_navigate`, `chrome_snapshot`, `chrome_click`,
+`chrome_type`, `chrome_select`, `chrome_press`, `chrome_screenshot`,
+`chrome_eval`, `chrome_extract_media`.
 
-Lists Chrome tabs exposed on `http://127.0.0.1:9222`.
+**Coinbase recon/data tools (new, read-only):**
 
-### `chrome_launch`
+| Tool | What it does |
+|---|---|
+| `coinbase_attach` | Fail-closed attach to the Advanced Trade tab; returns `{ attached, signedIn, tab, probeResults }`. Other Coinbase tools refuse when `signedIn === false`. |
+| `coinbase_recon` | One-shot deep recon → `recon/<symbol>-<ts>/` (`dom-map.json`, `network-map.json`, `behavioral.json`, `screenshots/`, `RECON_REPORT.md`). Never submits an order. |
+| `coinbase_market_stream` | Mirrors the page's WS for `durationMs`, normalizes to Tick/L2Update/Trade/Candle (decimal.js), sinks to a ring buffer + append-only JSONL journal, detects sequence gaps. |
+| `coinbase_snapshot_state` | Reads the in-memory ring buffer (counts, last tick/trade, recent N events). |
+| `coinbase_portfolio_snapshot` | Reads balances + open orders from the DOM (not an API). |
+| `coinbase_place_order` | **Execution scaffold.** `dryRun` hardcoded `true`. Validates against risk limits; OBSERVE_ONLY rejects all, PAPER logs a simulated fill. **Never clicks the order form.** |
+| `coinbase_paper_ledger` | Reads the PAPER position/P&L ledger and advisory half-Kelly sizing output. |
+| `coinbase_confirm_live` | Stubbed third LIVE factor; records the phrase but never arms live submission. |
+| `coinbase_reconcile_preview_intent` | Pure intended-order vs preview-shaped diff. No clicking, no DOM interaction. |
 
-Launches Chrome with `--remote-debugging-port=9222` and the dedicated `ChromeMCPProfile`, or opens a new tab if the endpoint is already running.
+---
 
-Example:
+## Safety model
 
-```json
-{
-  "url": "https://www.tripo3d.ai/"
-}
+Config lives in `config/default.json` (env vars `CMCP_*` override):
+
+```jsonc
+{ "mode": "OBSERVE_ONLY", "symbol": "BTC-USD",
+  "debugUrl": "http://127.0.0.1:9222",
+  "tabUrlContains": ["coinbase.com/advanced-trade", "coinbase.com/advanced-portfolio"],
+  "maxNotionalUsd": 0, "killSwitch": true }
 ```
 
-### `chrome_open_tab`
+| Mode | Behavior |
+|---|---|
+| `OBSERVE_ONLY` (default) | Read-only recon/data. `place_order` rejects everything. |
+| `PAPER` | `place_order` logs a `simulatedFill` at the live best bid/ask. Still no DOM click. |
+| `LIVE` | **Not wired.** Requires config flag + env var + `coinbase_confirm_live`, but the confirmation remains stubbed and cannot arm real submission. |
 
-Opens a new tab through an existing Chrome DevTools Protocol endpoint.
+The **kill switch** (`killSwitch: true`, default) is a manual circuit breaker
+checked first on every order path. `maxNotionalUsd: 0` means even simulated
+fills above $0 are rejected until you deliberately raise it.
 
-### Control Panel Automation Tools
+See **`EXECUTION_DESIGN.md`** for the full execution design and kill-switch flow,
+and **`knowledge-base/`** for the strategy rationale distilled from the
+reference library.
 
-These tools are useful for authenticated control panels such as Host Havoc when Chrome is launched with the debug profile:
+---
 
-- `chrome_navigate`: navigate the selected tab to a URL.
-- `chrome_snapshot`: summarize visible text, links, buttons, inputs, selects, and forms.
-- `chrome_click`: click by CSS selector or visible text.
-- `chrome_type`: type into an input by selector or label/placeholder/name/id/aria-label.
-- `chrome_select`: set a dropdown by selector or label.
-- `chrome_press`: send a keyboard key.
-- `chrome_screenshot`: save a PNG screenshot.
-- `chrome_eval`: run a small explicit JavaScript inspection/action.
-
-Suggested game panel workflow:
+## Verify
 
 ```powershell
-.\scripts\launch-chrome-mcp.ps1
+npm run check   # syntax-checks every source + test file
+npm run smoke   # offline core invariants always run;
+                # the live CDP suite runs automatically if a debug tab is up
 ```
 
-Then log in through the Chrome window and use `chrome_snapshot` before each destructive or high-impact action.
+The live smoke suite asserts: `coinbase_attach` → `signedIn === true`;
+`coinbase_market_stream` 30s → live tick/L2/signal data and 0 gaps;
+`coinbase_portfolio_snapshot` balances parse; `coinbase_place_order` (dryRun)
+returns a structured response (+ a journal line in PAPER mode).
 
-### `chrome_extract_media`
+Pass 2 live recon is in `recon/btc-usd-2026-06-10T20-48-37-731Z/`. In that run,
+CDP exposed no Coinbase WS frames, while the rendered BTC-USD order book changed
+live; the network map records that explicitly.
 
-Extracts candidate media URLs, document links, iframe URLs, and Brightspace content links from the selected tab.
+---
 
-Useful arguments:
+## What's NOT in this pass
 
-```json
-{
-  "urlContains": "online.academyart.edu"
-}
-```
+- **No trading.** No `Place Order` / `Preview Order` click anywhere.
+- **No credentials / auth.** No API keys, JWTs, HMAC, or cookie extraction.
+- **No Coinbase SDK or REST client** dependency.
+- **No second WebSocket.** We mirror the page's own feed.
 
-### `brightspace_collect_current`
-
-Builds a module folder with `manifest.json` and optionally HTML/PDF snapshots.
-
-Example arguments for your GAM_623 folder:
-
-```json
-{
-  "urlContains": "online.academyart.edu",
-  "outputDir": "C:\\Users\\NewAdmin\\Documents\\Academy of Art University\\2026\\Gam623",
-  "courseCode": "Gam_623",
-  "saveHtml": true,
-  "savePdf": true
-}
-```
-
-### `brightspace_archive_links`
-
-Navigates through Brightspace links found on the current page, or through a provided URL list, and saves each page into a categorized folder. This tool moves the selected Chrome tab as it works.
-
-Example:
-
-```json
-{
-  "urlContains": "online.academyart.edu",
-  "outputDir": "C:\\Users\\NewAdmin\\Documents\\Academy of Art University\\2026\\Gam623",
-  "courseCode": "Gam_623",
-  "maxPages": 20,
-  "saveHtml": true,
-  "savePdf": true
-}
-```
-
-### `chrome_save_page`
-
-Saves the selected tab as HTML and/or PDF.
-
-### `chrome_download_urls`
-
-Downloads direct authorized URLs using cookies from the selected Chrome tab. This is intended for direct links to files such as `.mp4`, `.pdf`, `.zip`, `.pptx`, and similar resources. HLS manifests (`.m3u8`) and DRM-backed players are reported by `chrome_extract_media`, but this server does not convert or bypass them.
-
-## Suggested Brightspace Workflow
-
-For the normal authenticated Person 1 profile, use the local extension bridge. Once Chrome has loaded the extension, future collection jobs can be started by Codex through the local collector:
-
-```powershell
-node .\scripts\extension-collector.mjs "C:\Users\NewAdmin\Documents\Academy of Art University\2026\Gam623"
-.\scripts\start-gam623-collection.ps1
-```
-
-If Chrome is fully closed first, this helper opens the Person 1 profile with the collector extension preloaded:
-
-```powershell
-.\scripts\launch-person1-collector.ps1
-```
-
-The extension polls the local collector from Brightspace pages and will navigate through discovered course content links after Codex starts a job.
-
-The older CDP tools are still useful when Chrome is launched with a separate debug profile:
-
-1. Launch Chrome with `--remote-debugging-port=9222`.
-2. Log in to Brightspace and open a module page.
-3. Ask Codex to run `brightspace_collect_current` into the relevant course folder.
-4. Review `manifest.json` for media and document candidates.
-5. Ask Codex to download the direct URLs you want with `chrome_download_urls`.
-6. For bulk page snapshots, ask Codex to run `brightspace_archive_links` from a content/module index page.
-
-## Development
-
-```powershell
-npm run check
-npm start
-```
+Design references live in `knowledge-base/`: Harris for order-book
+microstructure, Grinold-Kahn and Chan for IC/Kelly sizing, Lopez de Prado for
+overfitting discipline, Kahneman for operator bias guardrails, and Kleppmann for
+append-only stream handling.
