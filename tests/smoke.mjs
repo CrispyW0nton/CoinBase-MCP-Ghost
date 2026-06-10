@@ -28,7 +28,7 @@ import {
   makeTick, makeL2Update, makeTrade, serializeEvent, dec
 } from "../src/schema.js";
 import { RingBuffer, JsonlJournal } from "../src/journal.js";
-import { parseCoinbaseFrame } from "../src/coinbase.js";
+import { parseCoinbaseFrame, reconcilePreviewIntent, confirmLive, paperLedgerState } from "../src/coinbase.js";
 
 let failures = 0;
 function check(name, fn) {
@@ -115,6 +115,44 @@ async function offlineSuite() {
     assert.equal(cfg.mode, "OBSERVE_ONLY"); // default config
     assert.equal(cfg.killSwitch, true);
     assert.equal(cfg.maxNotionalUsd, 0);
+    assert.ok(Array.isArray(cfg.tabUrlContains));
+    assert.ok(cfg.tabUrlContains.some(item => item.includes("advanced-portfolio")));
+  });
+
+  await check("imbalance signal serializes Decimal fields as strings", () => {
+    const event = serializeEvent({
+      type: "imbalanceSignal",
+      ts: Date.now(),
+      symbol: "BTC-USD",
+      name: "l2_depth_imbalance",
+      value: dec("0.25"),
+      bidDepth: dec("5"),
+      askDepth: dec("3"),
+      levels: 10,
+      seq: 7
+    });
+    assert.equal(event.value, "0.25");
+    assert.equal(event.bidDepth, "5");
+  });
+
+  await check("preview-vs-intent reconciliation is decimal tolerant", () => {
+    const result = reconcilePreviewIntent({
+      intent: { side: "buy", type: "limit", baseSize: "0.010", limitPrice: "100.00" },
+      preview: { side: "buy", type: "limit", baseSize: "0.01", limitPrice: "100" }
+    });
+    assert.equal(result.ok, true);
+  });
+
+  await check("confirm_live records but never arms", async () => {
+    const result = await confirmLive({ phrase: "CONFIRM_LIVE_STUB_ONLY" });
+    assert.equal(result.stubbed, true);
+    assert.equal(result.armed, false);
+    assert.equal(result.confirmation.phraseAccepted, true);
+  });
+
+  await check("paper ledger exposes advisory half-Kelly shape", async () => {
+    const ledger = await paperLedgerState();
+    assert.equal(ledger.kelly.halfKellyFraction, "0");
   });
 }
 
@@ -131,16 +169,17 @@ async function liveSuite() {
   });
 
   const stream = await mod.marketStream({ durationMs: 30_000 });
-  await check("market_stream: >=1 tick, >=1 L2, >=1 trade, 0 gaps", () => {
+  await check("market_stream: live feed observed, signal journaled, 0 gaps", () => {
     assert.ok(stream.counts.ticks >= 1, "expected >=1 tick");
     assert.ok(stream.counts.l2 >= 1, "expected >=1 L2 update");
-    assert.ok(stream.counts.trades >= 1, "expected >=1 trade");
+    assert.ok(stream.counts.signals >= 1, "expected >=1 imbalance signal");
     assert.equal(stream.counts.gaps, 0, "expected zero gaps in the window");
   });
 
   const port = await mod.portfolioSnapshot({});
   await check("portfolio_snapshot: balances array present", () => {
     assert.ok(Array.isArray(port.balances));
+    assert.ok(port.balances.length >= 1, "expected >=1 parsed portfolio balance");
   });
 
   // dryRun place_order. In OBSERVE_ONLY this is rejected by design; in PAPER it

@@ -22,7 +22,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { ChromeSession, listTabs } from "./chrome.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, liveModeArmed, recordLiveConfirmation, getLiveConfirmation } from "./config.js";
 import { RingBuffer, JsonlJournal } from "./journal.js";
 import {
   makeTick, makeL2Update, makeTrade, makeCandle, makeGap,
@@ -30,6 +30,22 @@ import {
 } from "./schema.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
+
+const ADVANCED_VIEW_RE = /https:\/\/www\.coinbase\.com\/advanced-(trade|portfolio)(?:\/|$|\?)/i;
+
+function tabMatchesCoinbase(tab, urlContains) {
+  const url = String(tab?.url || "");
+  if (!ADVANCED_VIEW_RE.test(url)) return false;
+  const needles = Array.isArray(urlContains) ? urlContains : [urlContains].filter(Boolean);
+  if (needles.length === 0) return true;
+  return needles.some(needle => url.toLowerCase().includes(String(needle).toLowerCase()));
+}
+
+function viewFromUrl(url = "") {
+  if (/\/advanced-portfolio(?:\/|$|\?)/i.test(url)) return "portfolio";
+  if (/\/advanced-trade(?:\/|$|\?)/i.test(url)) return "trade";
+  return "unknown";
+}
 
 // ---------------------------------------------------------------------------
 // Tab discovery — FAILS CLOSED (Step 2).
@@ -71,13 +87,13 @@ const SIGNED_OUT_SELECTOR_CANDIDATES = [
 // falls back to tabs[0] — clicking/observing an unrelated tab would violate
 // the ghost contract (Hard Constraint #1).
 export async function pickCoinbaseTab({ debugUrl = DEFAULT_DEBUG_URL, urlContains } = {}) {
-  const needle = (urlContains || "coinbase.com/advanced-trade").toLowerCase();
+  const needles = urlContains ?? ["coinbase.com/advanced-trade", "coinbase.com/advanced-portfolio"];
   const tabs = await listTabs(debugUrl);
-  const match = tabs.find(t => (t.url || "").toLowerCase().includes(needle));
+  const match = tabs.find(t => tabMatchesCoinbase(t, needles));
   if (!match) {
     throw new Error(
-      `No Coinbase Advanced Trade tab found on the debug endpoint (${debugUrl}).\n` +
-      `Open https://www.coinbase.com/advanced-trade/spot/BTC-USD in the DEDICATED\n` +
+      `No Coinbase Advanced Trade/Portfolio tab found on the debug endpoint (${debugUrl}).\n` +
+      `Open https://www.coinbase.com/advanced-portfolio or https://www.coinbase.com/advanced-trade/spot/BTC-USD in the DEDICATED\n` +
       `debug profile (run scripts/launch-chrome-coinbase.ps1) and sign in once.\n` +
       `Refusing to fall back to an arbitrary tab (fail-closed ghost contract).`
     );
@@ -94,6 +110,7 @@ function probeScript() {
       readyState: document.readyState,
       url: location.href,
       title: document.title,
+      advancedText: /\\b(Portfolio|Order form|Order book|Balance summary|Assets)\\b/i.test(document.body?.innerText || ""),
       root: probe(${JSON.stringify(ROOT_SELECTOR_CANDIDATES)}),
       signedIn: probe(${JSON.stringify(SIGNED_IN_SELECTOR_CANDIDATES)}),
       signedOut: probe(${JSON.stringify(SIGNED_OUT_SELECTOR_CANDIDATES)})
@@ -118,12 +135,13 @@ export async function attach({ debugUrl, urlContains } = {}) {
     // Signed-in heuristic: at least one signed-in landmark present AND no
     // explicit sign-in CTA. We return signedIn explicitly so every other tool
     // can refuse when it is false (Step 2 requirement).
-    const signedIn = matchedSignedIn.length > 0 && matchedSignedOut.length === 0;
+    const signedIn = (matchedSignedIn.length > 0 || probe.advancedText === true) && matchedSignedOut.length === 0;
 
     return {
       attached: true,
       loaded,
       signedIn,
+      view: viewFromUrl(tab.url),
       tab: { id: tab.id, title: tab.title, url: tab.url },
       probeResults: {
         readyState: probe.readyState,
@@ -145,10 +163,20 @@ async function requireSignedInTab({ debugUrl, urlContains } = {}) {
   const uc = urlContains || cfg.tabUrlContains;
   const tab = await pickCoinbaseTab({ debugUrl: dbg, urlContains: uc });
   const session = await new ChromeSession(tab).connect();
-  const probe = await session.evaluate(probeScript());
+  let probe = await session.evaluate(probeScript());
   const matchedSignedIn = probe.signedIn.filter(r => r.present).map(r => r.selector);
   const matchedSignedOut = probe.signedOut.filter(r => r.present).map(r => r.selector);
-  const signedIn = matchedSignedIn.length > 0 && matchedSignedOut.length === 0;
+  let signedIn = (matchedSignedIn.length > 0 || probe.advancedText === true) && matchedSignedOut.length === 0;
+  if (!signedIn && matchedSignedOut.length === 0) {
+    const deadline = Date.now() + 8_000;
+    while (!signedIn && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      probe = await session.evaluate(probeScript()).catch(() => probe);
+      const retrySignedIn = probe.signedIn.filter(r => r.present).map(r => r.selector);
+      const retrySignedOut = probe.signedOut.filter(r => r.present).map(r => r.selector);
+      signedIn = (retrySignedIn.length > 0 || probe.advancedText === true) && retrySignedOut.length === 0;
+    }
+  }
   if (!signedIn) {
     session.close();
     throw new Error(
@@ -156,7 +184,153 @@ async function requireSignedInTab({ debugUrl, urlContains } = {}) {
       "Sign in to Coinbase in the debug-profile window first, then retry."
     );
   }
-  return { session, tab, cfg };
+  return { session, tab, cfg, view: viewFromUrl(tab.url) };
+}
+
+// ---------------------------------------------------------------------------
+// Pass 2 feature state: L2 imbalance signal + PAPER P&L ledger.
+//
+// Harris (market microstructure) motivates bid/ask depth imbalance as an
+// order-book pressure signal. Grinold-Kahn's IR≈IC·sqrt(breadth) and Chan's
+// Kelly sizing guidance motivate measuring realized PAPER outcomes before
+// sizing; López de Prado warns against fitting an edge before the feed is
+// measured out of sample.
+// ---------------------------------------------------------------------------
+
+const book = { bid: new Map(), ask: new Map(), lastSignal: null };
+const paperLedger = {
+  positionBase: new Decimal(0),
+  avgCostUsd: new Decimal(0),
+  realizedPnlUsd: new Decimal(0),
+  unrealizedPnlUsd: new Decimal(0),
+  lastMarkPx: null,
+  fills: [],
+  outcomes: []
+};
+
+function decimalMapSet(map, px, sz) {
+  if (!px || !sz) return;
+  const qty = dec(sz);
+  const price = dec(px);
+  if (!qty || !price) return;
+  const key = price.toString();
+  if (qty.isZero()) map.delete(key);
+  else map.set(key, qty);
+}
+
+function depth(side, levels = 10) {
+  const entries = [...book[side].entries()].map(([px, sz]) => ({ px: dec(px), sz }));
+  entries.sort((a, b) => side === "bid" ? b.px.comparedTo(a.px) : a.px.comparedTo(b.px));
+  return entries.slice(0, levels).reduce((sum, level) => sum.plus(level.sz), new Decimal(0));
+}
+
+function maybeEmitImbalanceSignal({ ts, symbol, seq }) {
+  const bidDepth = depth("bid");
+  const askDepth = depth("ask");
+  const total = bidDepth.plus(askDepth);
+  if (total.isZero()) return null;
+  const value = bidDepth.minus(askDepth).div(total);
+  const signal = {
+    type: "imbalanceSignal",
+    ts: ts ?? Date.now(),
+    symbol,
+    name: "l2_depth_imbalance",
+    value,
+    bidDepth,
+    askDepth,
+    levels: 10,
+    seq: seq ?? null
+  };
+  book.lastSignal = signal;
+  ring.push(signal);
+  journal?.append(signal);
+  return signal;
+}
+
+function markLedger(markPx) {
+  const mark = dec(markPx);
+  if (!mark) return;
+  paperLedger.lastMarkPx = mark;
+  paperLedger.unrealizedPnlUsd = paperLedger.positionBase.mul(mark.minus(paperLedger.avgCostUsd));
+}
+
+function applySimulatedFill(fill) {
+  const px = dec(fill.fillPx);
+  const qty = dec(fill.filledBase);
+  if (!px || !qty) return;
+  const signedQty = fill.side === "buy" ? qty : qty.negated();
+  const before = paperLedger.positionBase;
+  const after = before.plus(signedQty);
+
+  if (fill.side === "buy") {
+    const previousCost = paperLedger.avgCostUsd.mul(before);
+    const newCost = previousCost.plus(qty.mul(px));
+    paperLedger.positionBase = after;
+    paperLedger.avgCostUsd = after.isZero() ? new Decimal(0) : newCost.div(after);
+  } else {
+    const closingQty = Decimal.min(qty, Decimal.max(before, new Decimal(0)));
+    paperLedger.realizedPnlUsd = paperLedger.realizedPnlUsd.plus(px.minus(paperLedger.avgCostUsd).mul(closingQty));
+    paperLedger.positionBase = after;
+    if (after.lte(0)) paperLedger.avgCostUsd = new Decimal(0);
+  }
+
+  paperLedger.fills.push(fill);
+  paperLedger.fills = paperLedger.fills.slice(-500);
+  markLedger(px);
+
+  if (book.lastSignal) {
+    paperLedger.outcomes.push({
+      signal: book.lastSignal.value,
+      pnl: fill.side === "sell" ? px.minus(paperLedger.avgCostUsd) : new Decimal(0)
+    });
+    paperLedger.outcomes = paperLedger.outcomes.slice(-500);
+  }
+}
+
+function serializeDecimal(value) {
+  return value === null || value === undefined ? null : value.toString();
+}
+
+function paperLedgerSnapshot() {
+  return {
+    mode: loadConfig().mode,
+    positionBase: serializeDecimal(paperLedger.positionBase),
+    avgCostUsd: serializeDecimal(paperLedger.avgCostUsd),
+    realizedPnlUsd: serializeDecimal(paperLedger.realizedPnlUsd),
+    unrealizedPnlUsd: serializeDecimal(paperLedger.unrealizedPnlUsd),
+    lastMarkPx: serializeDecimal(paperLedger.lastMarkPx),
+    fills: paperLedger.fills.map(serializeEvent),
+    kelly: kellySizing()
+  };
+}
+
+function kellySizing() {
+  const outcomes = paperLedger.outcomes.filter(item => item.signal && item.pnl);
+  if (outcomes.length < 2) {
+    return { observations: outcomes.length, informationCoefficient: null, meanEdge: null, variance: null, halfKellyFraction: "0" };
+  }
+  const n = new Decimal(outcomes.length);
+  const meanSignal = outcomes.reduce((sum, x) => sum.plus(x.signal), new Decimal(0)).div(n);
+  const meanPnl = outcomes.reduce((sum, x) => sum.plus(x.pnl), new Decimal(0)).div(n);
+  let cov = new Decimal(0), varSignal = new Decimal(0), varPnl = new Decimal(0);
+  for (const item of outcomes) {
+    const ds = item.signal.minus(meanSignal);
+    const dp = item.pnl.minus(meanPnl);
+    cov = cov.plus(ds.mul(dp));
+    varSignal = varSignal.plus(ds.mul(ds));
+    varPnl = varPnl.plus(dp.mul(dp));
+  }
+  const ic = varSignal.isZero() || varPnl.isZero() ? new Decimal(0) : cov.div(varSignal.mul(varPnl).sqrt());
+  const variance = varPnl.div(n);
+  const fullKelly = variance.isZero() ? new Decimal(0) : meanPnl.div(variance);
+  const halfKelly = Decimal.max(new Decimal(0), fullKelly.div(2));
+  return {
+    observations: outcomes.length,
+    informationCoefficient: ic.toString(),
+    meanEdge: meanPnl.toString(),
+    variance: variance.toString(),
+    halfKellyFraction: halfKelly.toString()
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -247,10 +421,10 @@ let journal = null;
 export function getRing() { return ring; }
 
 export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 } = {}) {
-  const { session, tab, cfg } = await requireSignedInTab({ debugUrl, urlContains });
+  const { session, tab, cfg, view } = await requireSignedInTab({ debugUrl, urlContains });
   journal = journal || new JsonlJournal({ symbol: cfg.symbol });
 
-  const stats = { ticks: 0, l2: 0, trades: 0, candles: 0, gaps: 0, frames: 0, sockets: new Set() };
+  const stats = { ticks: 0, l2: 0, trades: 0, candles: 0, gaps: 0, signals: 0, frames: 0, sockets: new Set() };
   // Per-channel last sequence number, for gap detection. Coinbase increments
   // sequence_num monotonically per connection; a skip => dropped frame(s).
   let lastSeq = null;
@@ -287,8 +461,14 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
     for (const evt of events) {
       ring.push(evt);
       journal.append(evt);
-      if (evt.type === "tick") stats.ticks++;
-      else if (evt.type === "l2update") stats.l2++;
+      if (evt.type === "tick") {
+        stats.ticks++;
+        markLedger(evt.lastPx ?? evt.bidPx ?? evt.askPx);
+      } else if (evt.type === "l2update") {
+        stats.l2++;
+        decimalMapSet(book[evt.side], evt.px, evt.sz);
+        if (maybeEmitImbalanceSignal({ ts: evt.ts, symbol: evt.symbol, seq: evt.seq })) stats.signals++;
+      }
       else if (evt.type === "trade") stats.trades++;
       else if (evt.type === "candle") stats.candles++;
     }
@@ -296,7 +476,38 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
 
   const offRecv = session.on?.("Network.webSocketFrameReceived", handleFrame);
 
+  if (view === "portfolio") {
+    const loaded = session.waitForEvent("Page.loadEventFired", 30_000).catch(() => null);
+    await session.command("Page.navigate", { url: `https://www.coinbase.com/advanced-trade/spot/${encodeURIComponent(cfg.symbol)}` });
+    await loaded;
+    await new Promise(resolve => setTimeout(resolve, 2_000));
+  }
+
   await new Promise(resolve => setTimeout(resolve, durationMs));
+
+  if (stats.frames === 0) {
+    const fallback = await collectDomOrderBook(session, cfg.symbol);
+    for (const evt of fallback.events) {
+      ring.push(evt);
+      journal.append(evt);
+      if (evt.type === "tick") {
+        stats.ticks++;
+        markLedger(evt.lastPx ?? evt.bidPx ?? evt.askPx);
+      } else if (evt.type === "l2update") {
+        stats.l2++;
+        decimalMapSet(book[evt.side], evt.px, evt.sz);
+        if (maybeEmitImbalanceSignal({ ts: evt.ts, symbol: evt.symbol, seq: evt.seq })) stats.signals++;
+      }
+    }
+    stats.domFallback = fallback.events.length > 0;
+  }
+
+  const activeUrl = await safeLocation(session);
+  if (view === "portfolio") {
+    const loaded = session.waitForEvent("Page.loadEventFired", 30_000).catch(() => null);
+    await session.command("Page.navigate", { url: tab.url }).catch(() => {});
+    await loaded;
+  }
 
   offCreated?.();
   offRecv?.();
@@ -307,10 +518,50 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
     durationMs,
     tab: { id: tab.id, url: tab.url },
     sockets: [...stats.sockets],
-    counts: { ticks: stats.ticks, l2: stats.l2, trades: stats.trades, candles: stats.candles, gaps: stats.gaps, frames: stats.frames },
+    startView: view,
+    activeView: viewFromUrl(activeUrl),
+    counts: { ticks: stats.ticks, l2: stats.l2, trades: stats.trades, candles: stats.candles, gaps: stats.gaps, signals: stats.signals, frames: stats.frames },
+    domFallback: Boolean(stats.domFallback),
     journalPath: journal.path(),
-    ringSize: ring.size()
+    ringSize: ring.size(),
+    lastSignal: book.lastSignal ? serializeEvent(book.lastSignal) : null,
+    paperLedger: paperLedgerSnapshot()
   };
+}
+
+async function collectDomOrderBook(session, symbol) {
+  const sample = await session.evaluate(`(() => {
+    const lines = (document.body?.innerText || "").split(/\\n+/).map(s => s.trim()).filter(Boolean);
+    const start = lines.findIndex(line => /^BID \\(USD\\)$/i.test(line));
+    const end = lines.findIndex((line, idx) => idx > start && /Recent trades/i.test(line));
+    const section = lines.slice(start >= 0 ? start : 0, end > start ? end : undefined);
+    const nums = section.map(line => line.replace(/,/g, "")).filter(line => /^\\d+(?:\\.\\d+)?$/.test(line));
+    const pairs = [];
+    for (let i = 0; i < nums.length - 1; i += 2) {
+      const price = nums[i];
+      const size = nums[i + 1];
+      if (Number(price) > 1000 && Number(size) >= 0 && Number(size) < 1000) pairs.push({ price, size });
+    }
+    const half = Math.floor(pairs.length / 2);
+    return { bids: pairs.slice(0, half), asks: pairs.slice(half), capturedAt: Date.now() };
+  })()`);
+  const ts = sample?.capturedAt || Date.now();
+  const events = [];
+  for (const bid of sample?.bids?.slice(0, 25) || []) {
+    events.push(makeL2Update({ ts, symbol, side: "bid", px: bid.price, sz: bid.size, isSnapshot: true, seq: null }));
+  }
+  for (const ask of sample?.asks?.slice(0, 25) || []) {
+    events.push(makeL2Update({ ts, symbol, side: "ask", px: ask.price, sz: ask.size, isSnapshot: true, seq: null }));
+  }
+  if (sample?.bids?.[0] && sample?.asks?.[0]) {
+    events.push(makeTick({
+      ts, symbol,
+      bidPx: sample.bids[0].price, bidSz: sample.bids[0].size,
+      askPx: sample.asks[0].price, askSz: sample.asks[0].size,
+      lastPx: null, lastSz: null
+    }));
+  }
+  return { events };
 }
 
 export async function snapshotState({ n = 200 } = {}) {
@@ -319,8 +570,30 @@ export async function snapshotState({ n = 200 } = {}) {
     counts: ring.counts(),
     lastTick: ring.lastOfType("tick"),
     lastTrade: ring.lastOfType("trade"),
+    lastSignal: book.lastSignal ? serializeEvent(book.lastSignal) : null,
+    paperLedger: paperLedgerSnapshot(),
     recent: ring.recent(Number(n))
   };
+}
+
+async function safeLocation(session) {
+  try {
+    return await session.evaluate("location.href");
+  } catch {
+    return "";
+  }
+}
+
+async function waitForPortfolioRows(session) {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const ready = await session.evaluate(`(() =>
+      document.querySelector('[data-testid^="user-cash-table-body-row-"], [data-testid^="user-crypto-table-body-row-"]') !== null
+    )()`).catch(() => false);
+    if (ready) return true;
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -423,22 +696,71 @@ function domMapScript() {
 }
 
 export async function recon({ debugUrl, urlContains, networkSeconds = 60, sampleSeconds = 30, outputRoot } = {}) {
-  const { session, tab, cfg } = await requireSignedInTab({ debugUrl, urlContains });
+  const { session, tab, cfg, view } = await requireSignedInTab({ debugUrl, urlContains });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const dir = outputRoot || path.join(process.cwd(), "recon", `${cfg.symbol.toLowerCase()}-${stamp}`);
   const shotsDir = path.join(dir, "screenshots");
   await fs.mkdir(shotsDir, { recursive: true });
 
-  // (A) Static DOM map
-  const domMap = await session.evaluate(domMapScript());
-  await fs.writeFile(path.join(dir, "dom-map.json"), JSON.stringify(domMap, null, 2), "utf8");
-
-  // Full-page screenshot for annotation reference.
+  const originalUrl = tab.url;
   await session.command("Page.enable");
-  try {
-    const shot = await session.command("Page.captureScreenshot", { format: "png", fromSurface: true });
-    await fs.writeFile(path.join(shotsDir, "full-page.png"), Buffer.from(shot.data, "base64"));
-  } catch { /* screenshot is best-effort */ }
+
+  const waitForAdvancedView = async label => {
+    const deadline = Date.now() + 20_000;
+    while (Date.now() < deadline) {
+      const ready = await session.evaluate(`(() => {
+        const text = document.body?.innerText || "";
+        return ${JSON.stringify(label)} === "trade"
+          ? /Order book/.test(text) && /BID \\(USD\\)/.test(text)
+          : /Total balance/.test(text) && /Cash/.test(text);
+      })()`).catch(() => false);
+      if (ready) return true;
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return false;
+  };
+
+  const navigateAndWait = async (targetUrl, label) => {
+    const loaded = session.waitForEvent("Page.loadEventFired", 30_000).catch(() => null);
+    await session.command("Page.navigate", { url: targetUrl });
+    await loaded;
+    await waitForAdvancedView(label);
+  };
+
+  const captureView = async label => {
+    const dom = await session.evaluate(domMapScript());
+    try {
+      const shot = await session.command("Page.captureScreenshot", { format: "png", fromSurface: true, captureBeyondViewport: true });
+      await fs.writeFile(path.join(shotsDir, `${label}.png`), Buffer.from(shot.data, "base64"));
+      if (label === view) {
+        await fs.writeFile(path.join(shotsDir, "full-page.png"), Buffer.from(shot.data, "base64"));
+      }
+    } catch { /* screenshot is best-effort */ }
+    return dom;
+  };
+
+  // (A) Static DOM maps for both Advanced Portfolio and Advanced Trade views,
+  // using same-tab navigation only. This may cause Coinbase's own page to open
+  // its own market-data socket; we still never open a Coinbase socket from MCP.
+  const domViews = {};
+  domViews[view] = await captureView(view);
+  if (!domViews.portfolio) {
+    await navigateAndWait("https://www.coinbase.com/advanced-portfolio", "portfolio");
+    domViews.portfolio = await captureView("portfolio");
+  }
+  if (!domViews.trade) {
+    await navigateAndWait(`https://www.coinbase.com/advanced-trade/spot/${encodeURIComponent(cfg.symbol)}`, "trade");
+    domViews.trade = await captureView("trade");
+  }
+  const domMap = {
+    capturedAt: new Date().toISOString(),
+    originalUrl,
+    startView: view,
+    activeNetworkView: "trade",
+    views: domViews,
+    ...(domViews.trade || domViews.portfolio)
+  };
+  await fs.writeFile(path.join(dir, "dom-map.json"), JSON.stringify(domMap, null, 2), "utf8");
 
   // (B) Network reconnaissance — observe WS + REST for `networkSeconds`.
   await session.command("Network.enable");
@@ -510,6 +832,10 @@ export async function recon({ debugUrl, urlContains, networkSeconds = 60, sample
   const behavioral = await runBehavioralProbe(session, domMap);
   await fs.writeFile(path.join(dir, "behavioral.json"), JSON.stringify(behavioral, null, 2), "utf8");
 
+  if ((await session.evaluate("location.href")) !== originalUrl) {
+    await navigateAndWait(originalUrl, view).catch(() => {});
+  }
+
   session.close();
 
   // RECON_REPORT.md — human-readable, book-cited.
@@ -525,25 +851,17 @@ export async function recon({ debugUrl, urlContains, networkSeconds = 60, sample
   };
 }
 
-// Behavioral probe: SAFE interactions only. Returns observed selector/channel
-// deltas. (We never submit an order — Hard Constraint #2.)
+// Behavioral probe: observation only. Earlier passes allowed harmless-looking
+// side-toggle clicks, but Pass 2 forbids Buy/Sell/Preview/Place clicks outright.
 async function runBehavioralProbe(session) {
   const observe = async () => session.evaluate(`(() => ({
     bookRows: document.querySelectorAll('[class*="OrderBook" i] *, [data-testid*="order-book"] *').length,
-    activeTab: (document.querySelector('[role=tab][aria-selected="true"]')||{}).textContent || null
+    activeTab: (document.querySelector('[role=tab][aria-selected="true"]')||{}).textContent || null,
+    url: location.href
   }))()`);
   const before = await observe();
-  // Safe toggle: click a Buy/Sell tab ONLY if it is clearly a side toggle, not
-  // a submit button. We deliberately target [role=tab]/toggle, never a button
-  // whose text contains "place"/"preview".
-  await session.evaluate(`(() => {
-    const t = [...document.querySelectorAll('[role=tab],button,[role=button]')]
-      .find(e => /\\b(sell)\\b/i.test((e.textContent||"")) && !/place|preview|confirm/i.test((e.textContent||"")));
-    if (t) t.click();
-  })()`).catch(() => {});
-  await new Promise(r => setTimeout(r, 600));
   const after = await observe();
-  return { note: "Safe interactions only; no order submitted.", before, after };
+  return { note: "Observation only; no Buy/Sell/Preview/Place controls clicked.", before, after };
 }
 
 // Build the human-readable RECON_REPORT.md. Each section cites the book that
@@ -552,7 +870,9 @@ function buildReconReport({ cfg, domMap, networkMap, behavioral, stamp }) {
   const wsUrls = networkMap.webSockets.map(w => w.url);
   const channels = [...new Set(networkMap.webSockets.flatMap(w => Object.keys(w.channels)))];
   const rest = Object.entries(networkMap.rest);
-  const panel = domMap.orderPanel || {};
+  const tradeMap = domMap.views?.trade || domMap;
+  const portfolioMap = domMap.views?.portfolio || domMap;
+  const panel = tradeMap.orderPanel || {};
   const fmtLoc = d => d?.found
     ? d.locators.map(l => `\`${l.selector}\` (${l.strategy}, stability ${l.stability})`).join("<br>")
     : "_not found in this capture_";
@@ -560,6 +880,7 @@ function buildReconReport({ cfg, domMap, networkMap, behavioral, stamp }) {
   return `# Coinbase Advanced Trade — Recon Report (${cfg.symbol})
 
 _Captured: ${stamp}_  
+_Views captured: start=${domMap.startView || "unknown"}, portfolio=${domMap.views?.portfolio ? "yes" : "no"}, trade=${domMap.views?.trade ? "yes" : "no"}_  
 _Mode: **${cfg.mode}** — read-only. No orders placed (Hard Constraint #2)._
 
 This report is the **deliverable that the next development pass reads**. It maps
@@ -599,11 +920,11 @@ contracts over implicit coupling._
 > market-trades tape is realized order flow. Microstructure (spread, depth,
 > queue position) is visible here and drives any future execution policy.
 
-- Order-book container: ${domMap.orderBook?.container?.found ? "found" : "not found"}
-- Bid side: ${domMap.orderBook?.bidSide?.found ? "found" : "not found"}; Ask side: ${domMap.orderBook?.askSide?.found ? "found" : "not found"}
-- Mid/spread: ${domMap.orderBook?.spread?.found ? "found" : "not found"}
-- Chart: ${domMap.chart?.found ? (domMap.chart.isIframe ? "iframe (likely TradingView)" : domMap.chart.isCanvas ? "canvas" : "container") : "not found"}${domMap.chart?.iframeSrc ? ` — src: ${domMap.chart.iframeSrc}` : ""}
-- Recent trades tape: ${domMap.tradesTape?.found ? "found" : "not found"}
+- Order-book container: ${tradeMap.orderBook?.container?.found ? "found" : "not found"}
+- Bid side: ${tradeMap.orderBook?.bidSide?.found ? "found" : "not found"}; Ask side: ${tradeMap.orderBook?.askSide?.found ? "found" : "not found"}
+- Mid/spread: ${tradeMap.orderBook?.spread?.found ? "found" : "not found"}
+- Chart: ${tradeMap.chart?.found ? (tradeMap.chart.isIframe ? "iframe (likely TradingView)" : tradeMap.chart.isCanvas ? "canvas" : "container") : "not found"}${tradeMap.chart?.iframeSrc ? ` — src: ${tradeMap.chart.iframeSrc}` : ""}
+- Recent trades tape: ${tradeMap.tradesTape?.found ? "found" : "not found"}
 
 ---
 
@@ -614,8 +935,8 @@ contracts over implicit coupling._
 > coin custody. We read balances from the DOM only — never from an API and
 > never by touching keys.
 
-- Portfolio widget: ${domMap.portfolio?.widget?.found ? "found" : "not found"}
-- USD balance: ${domMap.portfolio?.usdBalance?.found ? "found" : "not found"}; BTC balance: ${domMap.portfolio?.btcBalance?.found ? "found" : "not found"}
+- Portfolio widget: ${portfolioMap.portfolio?.widget?.found ? "found" : "not found"}
+- USD balance: ${portfolioMap.portfolio?.usdBalance?.found ? "found" : "not found"}; BTC balance: ${portfolioMap.portfolio?.btcBalance?.found ? "found" : "not found"}
 
 ---
 
@@ -679,33 +1000,98 @@ function portfolioScript() {
   return `(() => {
     const txt = el => (el && (el.innerText || el.textContent || "") || "").replace(/\\s+/g, " ").trim();
     const num = s => { const m = (s||"").replace(/[, ]/g,"").match(/-?\\d+(?:\\.\\d+)?/); return m ? m[0] : null; };
+    const money = s => { const m = (s||"").replace(/,/g,"").match(/\\$\\s*<?\\s*(-?\\d+(?:\\.\\d+)?)/); return m ? m[1] : null; };
+    const rows = [...document.querySelectorAll('[data-testid^="user-cash-table-body-row-"], [data-testid^="user-crypto-table-body-row-"]')];
+    const balances = rows.map(el => {
+      const raw = txt(el);
+      const asset = raw.match(/^([A-Z0-9]{2,10})\\b/)?.[1] || null;
+      const dollars = [...raw.matchAll(/\\$\\s*<?\\s*(-?\\d+(?:\\.\\d+)?)/g)].map(m => m[1]);
+      const amount = [...raw.matchAll(/\\b(\\d+\\.\\d{4,})\\b/g)].map(m => m[1]).at(-1) || null;
+      return asset ? {
+        asset,
+        available: dollars[1] || dollars[0] || amount,
+        hold: null,
+        valueUsd: dollars[0] || null,
+        amount,
+        raw: raw.slice(0, 160),
+        source: el.getAttribute("data-testid")
+      } : null;
+    }).filter(Boolean);
     // Fallback chain: try contractual hooks first, then class fragments, then
     // text scan. (Ranking matches dom-map stability ordering.)
-    const balEls = [
-      ...document.querySelectorAll('[data-testid*="balance" i], [data-testid*="portfolio" i], [class*="Balance" i], [class*="Asset" i]')
-    ];
-    const balances = [];
-    for (const el of balEls.slice(0, 60)) {
-      const t = txt(el);
-      const m = t.match(/\\b(USD|USDC|BTC|ETH|[A-Z]{3,5})\\b/);
-      if (m && /\\d/.test(t)) {
-        balances.push({ asset: m[1], available: num(t), hold: null, raw: t.slice(0, 80) });
+    if (balances.length === 0) {
+      const balEls = [
+        ...document.querySelectorAll('[data-testid*="balance" i], [data-testid*="portfolio" i], [class*="Balance" i], [class*="Asset" i]')
+      ];
+      for (const el of balEls.slice(0, 60)) {
+        const t = txt(el);
+        const m = t.match(/\\b(USD|USDC|BTC|ETH|[A-Z]{3,5})\\b/);
+        if (m && /\\d/.test(t)) {
+          balances.push({ asset: m[1], available: num(t), hold: null, valueUsd: money(t), amount: null, raw: t.slice(0, 120), source: "fallback-scan" });
+        }
       }
     }
-    const orderEls = [...document.querySelectorAll('[data-testid*="open-order" i], [class*="OpenOrder" i], [aria-label*="open order" i] tr, [role="row"]')];
+    const orderEls = [...document.querySelectorAll('[data-testid*="open-order" i], [class*="OpenOrder" i], [aria-label*="open order" i]')];
     const openOrders = orderEls.slice(0, 40).map(el => ({ raw: txt(el).slice(0, 160) })).filter(o => o.raw);
-    return { capturedAt: new Date().toISOString(), balances, openOrders, positions: [] };
+    return { capturedAt: new Date().toISOString(), balances, openOrders, positions: balances.filter(b => b.amount).map(b => ({ asset: b.asset, amount: b.amount, valueUsd: b.valueUsd, availableUsd: b.available })) };
   })()`;
 }
 
 export async function portfolioSnapshot({ debugUrl, urlContains } = {}) {
-  const { session } = await requireSignedInTab({ debugUrl, urlContains });
+  const { session, tab, view } = await requireSignedInTab({ debugUrl, urlContains });
   try {
+    if (view !== "portfolio") {
+      await session.command("Page.enable");
+      const loaded = session.waitForEvent("Page.loadEventFired", 30_000).catch(() => null);
+      await session.command("Page.navigate", { url: "https://www.coinbase.com/advanced-portfolio" });
+      await loaded;
+    }
+    await waitForPortfolioRows(session);
     const snap = await session.evaluate(portfolioScript());
     return { ts: Date.now(), ...snap };
   } finally {
+    if (view !== "portfolio") {
+      const loaded = session.waitForEvent("Page.loadEventFired", 30_000).catch(() => null);
+      await session.command("Page.navigate", { url: tab.url }).catch(() => {});
+      await loaded;
+    }
     session.close();
   }
+}
+
+export async function paperLedgerState() {
+  return paperLedgerSnapshot();
+}
+
+export async function confirmLive({ phrase } = {}) {
+  const confirmation = recordLiveConfirmation({ phrase });
+  const cfg = loadConfig({ force: true });
+  return {
+    confirmed: false,
+    armed: liveModeArmed(cfg),
+    stubbed: true,
+    confirmation,
+    liveConfirmation: getLiveConfirmation(),
+    reason: "Confirmation was recorded, but Pass 2 keeps LIVE submission disconnected."
+  };
+}
+
+export function reconcilePreviewIntent({ intent = {}, preview = {} } = {}) {
+  const fields = ["side", "type", "baseSize", "quoteSize", "limitPrice", "timeInForce", "symbol"];
+  const diffs = [];
+  for (const field of fields) {
+    const intended = intent[field] ?? null;
+    const shown = preview[field] ?? null;
+    const intendedDec = ["baseSize", "quoteSize", "limitPrice"].includes(field) ? dec(intended) : null;
+    const shownDec = ["baseSize", "quoteSize", "limitPrice"].includes(field) ? dec(shown) : null;
+    const equal = intendedDec && shownDec ? intendedDec.eq(shownDec) : String(intended ?? "") === String(shown ?? "");
+    if (!equal) diffs.push({ field, intended: intended === null ? null : String(intended), preview: shown === null ? null : String(shown) });
+  }
+  return {
+    ok: diffs.length === 0,
+    diffs,
+    note: "Pure preview-vs-intent reconciliation only; no DOM interaction, no Preview Order click."
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -737,7 +1123,11 @@ export async function placeOrder(args = {}) {
   // Kill switch and OBSERVE_ONLY reject everything.
   if (cfg.killSwitch) return reject("killSwitch is engaged in config; no orders (even simulated) accepted.");
   if (cfg.mode === "OBSERVE_ONLY") return reject("mode is OBSERVE_ONLY; all order requests rejected by design.");
-  if (cfg.mode === "LIVE") return reject("LIVE mode is not wired in this pass (Hard Constraint #5).");
+  if (cfg.mode === "LIVE") {
+    return reject(liveModeArmed(cfg)
+      ? "LIVE mode arming is stubbed and the real submission path remains disconnected."
+      : "LIVE mode is not armed; confirmation is stubbed and no real submission path is connected.");
+  }
 
   // From here: mode === "PAPER".
   // Estimate notional from the freshest tick in the ring buffer.
@@ -776,9 +1166,11 @@ export async function placeOrder(args = {}) {
   };
   ring.push(fill);
   journal.append(fill);
+  applySimulatedFill(fill);
 
   return {
     accepted: true, dryRun, mode: cfg.mode, simulatedFill: serializeEvent(fill),
+    paperLedger: paperLedgerSnapshot(),
     journalPath: journal.path()
   };
 }

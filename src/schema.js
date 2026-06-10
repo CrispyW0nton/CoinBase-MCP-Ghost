@@ -137,6 +137,14 @@ export function serializeEvent(evt) {
       out.gotSeq = evt.gotSeq;
       out.channel = evt.channel;
       break;
+    case "imbalanceSignal":
+      out.name = evt.name;
+      out.value = ser(evt.value);
+      out.bidDepth = ser(evt.bidDepth);
+      out.askDepth = ser(evt.askDepth);
+      out.levels = evt.levels;
+      out.seq = evt.seq;
+      break;
     case "simulatedFill":
       // produced by the execution scaffold (src/coinbase.js)
       return { ...evt };

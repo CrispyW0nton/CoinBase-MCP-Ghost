@@ -19,13 +19,13 @@
 | `LIVE` | **Not wired this pass.** Reserved. | Would click the order form. |
 
 LIVE arming requires **three** independent factors (see `src/config.js`
-`liveModeArmed()`), of which only two are even representable today and the
-third is deliberately stubbed to `false`:
+`liveModeArmed()`), and the third is deliberately recorded-but-stubbed:
 
 1. `config.mode === "LIVE"` (config flag), **and**
 2. `process.env.CMCP_ALLOW_LIVE === "I_UNDERSTAND_THE_RISK"` (env var), **and**
-3. an explicit `coinbase_confirm_live` tool call (NOT implemented — returns
-   `false` unconditionally in this pass).
+3. an explicit `coinbase_confirm_live` tool call. It records the phrase
+   `CONFIRM_LIVE_STUB_ONLY` for audit, but still returns `armed:false`; real
+   submission remains disconnected.
 
 > **Taleb (foreword to Ammous, _The Bitcoin Standard_; _Antifragile_).**
 > Downside from an erroneous live order is unbounded relative to the upside of
@@ -70,7 +70,7 @@ preview-vs-intent diff is a cheap, decisive sanity check.
 
 ## 3. The policy that would generate each call
 
-### 3.1 Sizing — Kelly criterion
+### 3.1 Signal and sizing — imbalance, IC, Kelly
 
 > **Chan, _Algorithmic Trading: Winning Strategies and Their Rationale_, Ch. 8
 > ("Money and Risk Management"); and Chan, _Quantitative Trading_.** Position
@@ -92,7 +92,25 @@ are rejected until an operator raises it deliberately.
 > **Grinold & Kahn, _Active Portfolio Management_ (the Fundamental Law of Active
 > Management, IR ≈ IC·√breadth).** Sizing should scale with the *information
 > coefficient* of the signal and the *breadth* of independent bets — not with
-> conviction-of-the-moment. The next pass wires IC/breadth into `kellyFraction`.
+> conviction-of-the-moment.
+
+Pass 2 computes an order-book depth imbalance signal:
+
+```
+imbalance = (sum_top10_bid_size - sum_top10_ask_size)
+            / (sum_top10_bid_size + sum_top10_ask_size)
+```
+
+The PAPER ledger records simulated outcomes and exposes advisory half-Kelly:
+
+```
+f_full = measured_mean_edge / measured_variance
+f_used = max(0, f_full / 2)
+```
+
+This is advisory only and never auto-acts. **Lopez de Prado, AFML**, motivates
+requiring measured PAPER outcomes before trusting the signal; **Kahneman**
+motivates shrinking action toward inaction when evidence is thin.
 
 ### 3.2 Market vs. limit selection
 
@@ -143,6 +161,6 @@ Operator actions:
 - No `Runtime.evaluate` that mutates the order form.
 - No credentials, JWT, HMAC, cookies, REST, or SDK.
 
-The next pass should: (a) implement `coinbase_confirm_live`, (b) wire Kelly
-sizing from a real signal, (c) implement preview reconciliation, and (d) add a
-paper-trading P&L ledger on top of the `simulatedFill` journal events.
+Pass 2 implemented `coinbase_confirm_live` as a stub, preview reconciliation as
+a pure diff, and the PAPER P&L ledger. Future LIVE work still requires a fresh
+review before connecting any DOM submission path.

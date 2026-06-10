@@ -1,0 +1,13 @@
+{
+  "note": "Observation only; no Buy/Sell/Preview/Place controls clicked.",
+  "before": {
+    "bookRows": 361,
+    "activeTab": "Buy",
+    "url": "https://www.coinbase.com/advanced-trade/spot/BTC-USD"
+  },
+  "after": {
+    "bookRows": 361,
+    "activeTab": "Buy",
+    "url": "https://www.coinbase.com/advanced-trade/spot/BTC-USD"
+  }
+}

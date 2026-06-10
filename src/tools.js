@@ -7,7 +7,10 @@ import {
   marketStream as coinbaseMarketStream,
   snapshotState as coinbaseSnapshotState,
   portfolioSnapshot as coinbasePortfolioSnapshot,
-  placeOrder as coinbasePlaceOrder
+  placeOrder as coinbasePlaceOrder,
+  paperLedgerState as coinbasePaperLedgerState,
+  confirmLive as coinbaseConfirmLive,
+  reconcilePreviewIntent as coinbaseReconcilePreviewIntent
 } from "./coinbase.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
@@ -204,7 +207,7 @@ export const tools = [
       type: "object",
       properties: {
         debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
-        urlContains: { type: "string", default: "coinbase.com/advanced-trade" }
+        urlContains: { anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], default: ["coinbase.com/advanced-trade", "coinbase.com/advanced-portfolio"] }
       }
     }
   },
@@ -215,7 +218,7 @@ export const tools = [
       type: "object",
       properties: {
         debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
-        urlContains: { type: "string", default: "coinbase.com/advanced-trade" },
+        urlContains: { anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], default: ["coinbase.com/advanced-trade", "coinbase.com/advanced-portfolio"] },
         networkSeconds: { type: "number", default: 60 },
         sampleSeconds: { type: "number", default: 30 },
         outputRoot: { type: "string" }
@@ -229,7 +232,7 @@ export const tools = [
       type: "object",
       properties: {
         debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
-        urlContains: { type: "string", default: "coinbase.com/advanced-trade" },
+        urlContains: { anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], default: ["coinbase.com/advanced-trade", "coinbase.com/advanced-portfolio"] },
         durationMs: { type: "number", default: 30000 }
       }
     }
@@ -251,7 +254,7 @@ export const tools = [
       type: "object",
       properties: {
         debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
-        urlContains: { type: "string", default: "coinbase.com/advanced-trade" }
+        urlContains: { anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], default: ["coinbase.com/advanced-trade", "coinbase.com/advanced-portfolio"] }
       }
     }
   },
@@ -270,6 +273,35 @@ export const tools = [
         timeInForce: { type: "string", enum: ["GTC", "IOC", "FOK"], default: "GTC" },
         clientOrderId: { type: "string" },
         dryRun: { type: "boolean", default: true }
+      }
+    }
+  },
+  {
+    name: "coinbase_paper_ledger",
+    description: "Read the in-memory PAPER trading ledger: running position, realized/unrealized P&L, recent simulated fills, and advisory half-Kelly sizing from measured PAPER outcomes. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {}
+    }
+  },
+  {
+    name: "coinbase_confirm_live",
+    description: "Stubbed LIVE ladder third factor. Records an explicit confirmation phrase for audit but never arms or submits live orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        phrase: { type: "string", description: "Must be CONFIRM_LIVE_STUB_ONLY to be accepted by the stub; still cannot arm LIVE." }
+      }
+    }
+  },
+  {
+    name: "coinbase_reconcile_preview_intent",
+    description: "Pure preview-vs-intent diff for future safety checks. Accepts intended order fields and a preview-shaped object; performs no clicking or DOM interaction.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        intent: { type: "object" },
+        preview: { type: "object" }
       }
     }
   }
@@ -313,6 +345,12 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbasePortfolioSnapshot(args), null, 2));
     case "coinbase_place_order":
       return textResult(JSON.stringify(await coinbasePlaceOrder(args), null, 2));
+    case "coinbase_paper_ledger":
+      return textResult(JSON.stringify(await coinbasePaperLedgerState(args), null, 2));
+    case "coinbase_confirm_live":
+      return textResult(JSON.stringify(await coinbaseConfirmLive(args), null, 2));
+    case "coinbase_reconcile_preview_intent":
+      return textResult(JSON.stringify(coinbaseReconcilePreviewIntent(args), null, 2));
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

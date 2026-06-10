@@ -1,0 +1,623 @@
+{
+  "capturedAt": "2026-06-10T20:48:43.379Z",
+  "originalUrl": "https://www.coinbase.com/advanced-portfolio",
+  "startView": "portfolio",
+  "activeNetworkView": "trade",
+  "views": {
+    "portfolio": {
+      "capturedAt": "2026-06-10T20:48:37.771Z",
+      "url": "https://www.coinbase.com/advanced-portfolio",
+      "title": "Portfolio · Coinbase",
+      "orderPanel": {
+        "buySellToggle": {
+          "name": "buySellToggle",
+          "found": false
+        },
+        "orderTypeSelector": {
+          "name": "orderTypeSelector",
+          "found": false
+        },
+        "amountInput": {
+          "name": "amountInput",
+          "found": false
+        },
+        "quoteCurrencyToggle": {
+          "name": "quoteCurrencyToggle",
+          "found": false
+        },
+        "placeOrderButton": {
+          "name": "placeOrderButton",
+          "found": false
+        }
+      },
+      "orderBook": {
+        "container": {
+          "name": "orderBookContainer",
+          "found": false
+        },
+        "bidSide": {
+          "name": "bidSide",
+          "found": false
+        },
+        "askSide": {
+          "name": "askSide",
+          "found": false
+        },
+        "midPrice": {
+          "name": "midPrice",
+          "found": false
+        },
+        "spread": {
+          "name": "spread",
+          "found": false
+        }
+      },
+      "chart": {
+        "name": "chartContainer",
+        "found": true,
+        "textSample": "$0.00December 31, 19694:00 PM3:26 PM7:36 PM11:47 PM3:57 AM8:08 AM12:18 PM",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0
+        },
+        "parentLandmark": "[data-testid=\"balance-chart-container\"]",
+        "locators": [
+          {
+            "strategy": "data-testid",
+            "selector": "[data-testid=\"balance-chart-container\"]",
+            "stability": 1
+          },
+          {
+            "strategy": "class-fragment",
+            "selector": "div[class*=\"flex-ff5rfy6\"]",
+            "stability": 3
+          },
+          {
+            "strategy": "textContent",
+            "selector": "text=\"$0.00December 31, 19694:00 PM3:26 PM7:36 PM11:47 PM3:57 AM8:08 AM12:18 PM\"",
+            "stability": 4
+          }
+        ],
+        "isIframe": false,
+        "isCanvas": false
+      },
+      "tradesTape": {
+        "name": "recentTrades",
+        "found": false
+      },
+      "portfolio": {
+        "widget": {
+          "name": "portfolioWidget",
+          "found": true,
+          "textSample": "󰇱 Portfolio",
+          "bbox": {
+            "x": 10,
+            "y": 226,
+            "w": 66,
+            "h": 66
+          },
+          "parentLandmark": "[data-testid=\"navigationItem-portfolio\"]",
+          "locators": [
+            {
+              "strategy": "data-testid",
+              "selector": "[data-testid=\"navigationItem-portfolio\"]",
+              "stability": 1
+            },
+            {
+              "strategy": "class-fragment",
+              "selector": "div[class*=\"flex-ff5rfy6\"]",
+              "stability": 3
+            },
+            {
+              "strategy": "textContent",
+              "selector": "text=\"󰇱 Portfolio\"",
+              "stability": 4
+            }
+          ]
+        },
+        "usdBalance": {
+          "name": "usdBalance",
+          "found": true,
+          "textSample": "Total balance $ 9 8 7 6 5 4 3 2 1 0 . , 9 8 7 6 5 4 3 2 1 0 . , 9 8 7 6 5 4 3 2 1 0 . , 9 8 7 6 5 4 3 2 1 0 . , 9 8 7 6 ",
+          "bbox": {
+            "x": 87,
+            "y": 73,
+            "w": 939,
+            "h": 140
+          },
+          "parentLandmark": "[data-testid=\"total-balance-header\"]",
+          "locators": [
+            {
+              "strategy": "data-testid",
+              "selector": "[data-testid=\"total-balance-header\"]",
+              "stability": 1
+            },
+            {
+              "strategy": "class-fragment",
+              "selector": "section[class*=\"flex-ff5rfy6\"]",
+              "stability": 3
+            },
+            {
+              "strategy": "textContent",
+              "selector": "text=\"Total balance $ 9 8 7 6 5 4 3 2 1 0 . , 9 8 7 6 5 4 3 2 1 0 . , 9 8 7 6 5 4 3 2 1 0 . , 9 8 7 6 5 4 3 2 1 0 . , 9 8 7 6 \"",
+              "stability": 4
+            }
+          ]
+        },
+        "btcBalance": {
+          "name": "btcBalance",
+          "found": false
+        },
+        "available": {
+          "name": "available",
+          "found": true,
+          "textSample": "Name Balance 󰞷 Available Amount Allocation Returns BTC $4.13 $4.13 0.000067 3.93% ↘ $0.07 (1.86%) USDT $0.17 $0.17 0.17",
+          "bbox": {
+            "x": 87,
+            "y": 596,
+            "w": 939,
+            "h": 474
+          },
+          "parentLandmark": "[role=\"region\"]",
+          "locators": [
+            {
+              "strategy": "role+name",
+              "selector": "role=region name=\"user-crypto-table-balance\"",
+              "stability": 2
+            },
+            {
+              "strategy": "class-fragment",
+              "selector": "div[class*=\"cds-Collapsible\"]",
+              "stability": 3
+            },
+            {
+              "strategy": "textContent",
+              "selector": "text=\"Name Balance 󰞷 Available Amount Allocation Returns BTC $4.13 $4.13 0.000067 3.93% ↘ $0.07 (1.86%) USDT $0.17 $0.17 0.17\"",
+              "stability": 4
+            }
+          ]
+        },
+        "holds": {
+          "name": "holds",
+          "found": false
+        }
+      },
+      "tabs": {
+        "openOrders": {
+          "name": "openOrdersTab",
+          "found": true,
+          "textSample": "Open orders Funds you have allocated to unexecuted orders. $0.00 0 open orders",
+          "bbox": {
+            "x": 87,
+            "y": 1264,
+            "w": 939,
+            "h": 88
+          },
+          "parentLandmark": "[data-testid=\"adv-portfolio-v2-open-order-card-pressable\"]",
+          "locators": [
+            {
+              "strategy": "data-testid",
+              "selector": "[data-testid=\"adv-portfolio-v2-open-order-card-pressable\"]",
+              "stability": 1
+            },
+            {
+              "strategy": "class-fragment",
+              "selector": "button[class*=\"flex-ff5rfy6\"]",
+              "stability": 3
+            },
+            {
+              "strategy": "textContent",
+              "selector": "text=\"Open orders Funds you have allocated to unexecuted orders. $0.00 0 open orders\"",
+              "stability": 4
+            }
+          ]
+        },
+        "orderHistory": {
+          "name": "orderHistoryTab",
+          "found": true,
+          "textSample": "History",
+          "bbox": {
+            "x": 924,
+            "y": 427,
+            "w": 58,
+            "h": 24
+          },
+          "parentLandmark": null,
+          "locators": [
+            {
+              "strategy": "class-fragment",
+              "selector": "button[class*=\"flex-ff5rfy6\"]",
+              "stability": 3
+            },
+            {
+              "strategy": "textContent",
+              "selector": "text=\"History\"",
+              "stability": 4
+            }
+          ]
+        }
+      }
+    },
+    "trade": {
+      "capturedAt": "2026-06-10T20:48:43.379Z",
+      "url": "https://www.coinbase.com/advanced-trade/spot/BTC-USD",
+      "title": "Coinbase",
+      "orderPanel": {
+        "buySellToggle": {
+          "name": "buySellToggle",
+          "found": true,
+          "textSample": "Buy",
+          "bbox": {
+            "x": 775,
+            "y": 165,
+            "w": 122,
+            "h": 32
+          },
+          "parentLandmark": "[role=\"tab\"]",
+          "locators": [
+            {
+              "strategy": "role+name",
+              "selector": "role=tab",
+              "stability": 2
+            },
+            {
+              "strategy": "class-fragment",
+              "selector": "button[class*=\"flex-ff5rfy6\"]",
+              "stability": 3
+            },
+            {
+              "strategy": "textContent",
+              "selector": "text=\"Buy\"",
+              "stability": 4
+            }
+          ]
+        },
+        "orderTypeSelector": {
+          "name": "orderTypeSelector",
+          "found": false
+        },
+        "amountInput": {
+          "name": "amountInput",
+          "found": false
+        },
+        "quoteCurrencyToggle": {
+          "name": "quoteCurrencyToggle",
+          "found": false
+        },
+        "placeOrderButton": {
+          "name": "placeOrderButton",
+          "found": false
+        }
+      },
+      "orderBook": {
+        "container": {
+          "name": "orderBookContainer",
+          "found": true,
+          "textSample": "No data currently available for this market",
+          "bbox": {
+            "x": 489,
+            "y": 178,
+            "w": 268,
+            "h": 392
+          },
+          "parentLandmark": null,
+          "locators": [
+            {
+              "strategy": "class-fragment",
+              "selector": "div[class*=\"OrderBook__StyledDiv-sc-811bd00e-0\"]",
+              "stability": 3
+            },
+            {
+              "strategy": "textContent",
+              "selector": "text=\"No data currently available for this market\"",
+              "stability": 4
+            }
+          ]
+        },
+        "bidSide": {
+          "name": "bidSide",
+          "found": false
+        },
+        "askSide": {
+          "name": "askSide",
+          "found": false
+        },
+        "midPrice": {
+          "name": "midPrice",
+          "found": false
+        },
+        "spread": {
+          "name": "spread",
+          "found": false
+        }
+      },
+      "chart": {
+        "name": "chartContainer",
+        "found": true,
+        "textSample": "",
+        "bbox": {
+          "x": 92,
+          "y": 157,
+          "w": 391,
+          "h": 413
+        },
+        "parentLandmark": "[data-testid=\"price-chart\"]",
+        "locators": [],
+        "isIframe": true,
+        "isCanvas": false,
+        "iframeSrc": "blob:https://www.coinbase.com/3528d49c-cd35-44b9-a3cd-6734a08ae55d"
+      },
+      "tradesTape": {
+        "name": "recentTrades",
+        "found": false
+      },
+      "portfolio": {
+        "widget": {
+          "name": "portfolioWidget",
+          "found": true,
+          "textSample": "󰇱 Portfolio",
+          "bbox": {
+            "x": 10,
+            "y": 226,
+            "w": 66,
+            "h": 66
+          },
+          "parentLandmark": "[data-testid=\"navigationItem-portfolio\"]",
+          "locators": [
+            {
+              "strategy": "data-testid",
+              "selector": "[data-testid=\"navigationItem-portfolio\"]",
+              "stability": 1
+            },
+            {
+              "strategy": "class-fragment",
+              "selector": "div[class*=\"flex-ff5rfy6\"]",
+              "stability": 3
+            },
+            {
+              "strategy": "textContent",
+              "selector": "text=\"󰇱 Portfolio\"",
+              "stability": 4
+            }
+          ]
+        },
+        "usdBalance": {
+          "name": "usdBalance",
+          "found": false
+        },
+        "btcBalance": {
+          "name": "btcBalance",
+          "found": false
+        },
+        "available": {
+          "name": "available",
+          "found": true,
+          "textSample": "BID (USD) AMOUNT (BTC) ASK (USD) AMOUNT (BTC) No data currently available for this market",
+          "bbox": {
+            "x": 489,
+            "y": 157,
+            "w": 268,
+            "h": 413
+          },
+          "parentLandmark": "[data-testid=\"spot-advanced-trade-ui\"]",
+          "locators": [
+            {
+              "strategy": "class-fragment",
+              "selector": "div[class*=\"flexlayout__tab\"]",
+              "stability": 3
+            },
+            {
+              "strategy": "textContent",
+              "selector": "text=\"BID (USD) AMOUNT (BTC) ASK (USD) AMOUNT (BTC) No data currently available for this market\"",
+              "stability": 4
+            }
+          ]
+        },
+        "holds": {
+          "name": "holds",
+          "found": false
+        }
+      },
+      "tabs": {
+        "openOrders": {
+          "name": "openOrdersTab",
+          "found": false
+        },
+        "orderHistory": {
+          "name": "orderHistoryTab",
+          "found": false
+        }
+      }
+    }
+  },
+  "url": "https://www.coinbase.com/advanced-trade/spot/BTC-USD",
+  "title": "Coinbase",
+  "orderPanel": {
+    "buySellToggle": {
+      "name": "buySellToggle",
+      "found": true,
+      "textSample": "Buy",
+      "bbox": {
+        "x": 775,
+        "y": 165,
+        "w": 122,
+        "h": 32
+      },
+      "parentLandmark": "[role=\"tab\"]",
+      "locators": [
+        {
+          "strategy": "role+name",
+          "selector": "role=tab",
+          "stability": 2
+        },
+        {
+          "strategy": "class-fragment",
+          "selector": "button[class*=\"flex-ff5rfy6\"]",
+          "stability": 3
+        },
+        {
+          "strategy": "textContent",
+          "selector": "text=\"Buy\"",
+          "stability": 4
+        }
+      ]
+    },
+    "orderTypeSelector": {
+      "name": "orderTypeSelector",
+      "found": false
+    },
+    "amountInput": {
+      "name": "amountInput",
+      "found": false
+    },
+    "quoteCurrencyToggle": {
+      "name": "quoteCurrencyToggle",
+      "found": false
+    },
+    "placeOrderButton": {
+      "name": "placeOrderButton",
+      "found": false
+    }
+  },
+  "orderBook": {
+    "container": {
+      "name": "orderBookContainer",
+      "found": true,
+      "textSample": "No data currently available for this market",
+      "bbox": {
+        "x": 489,
+        "y": 178,
+        "w": 268,
+        "h": 392
+      },
+      "parentLandmark": null,
+      "locators": [
+        {
+          "strategy": "class-fragment",
+          "selector": "div[class*=\"OrderBook__StyledDiv-sc-811bd00e-0\"]",
+          "stability": 3
+        },
+        {
+          "strategy": "textContent",
+          "selector": "text=\"No data currently available for this market\"",
+          "stability": 4
+        }
+      ]
+    },
+    "bidSide": {
+      "name": "bidSide",
+      "found": false
+    },
+    "askSide": {
+      "name": "askSide",
+      "found": false
+    },
+    "midPrice": {
+      "name": "midPrice",
+      "found": false
+    },
+    "spread": {
+      "name": "spread",
+      "found": false
+    }
+  },
+  "chart": {
+    "name": "chartContainer",
+    "found": true,
+    "textSample": "",
+    "bbox": {
+      "x": 92,
+      "y": 157,
+      "w": 391,
+      "h": 413
+    },
+    "parentLandmark": "[data-testid=\"price-chart\"]",
+    "locators": [],
+    "isIframe": true,
+    "isCanvas": false,
+    "iframeSrc": "blob:https://www.coinbase.com/3528d49c-cd35-44b9-a3cd-6734a08ae55d"
+  },
+  "tradesTape": {
+    "name": "recentTrades",
+    "found": false
+  },
+  "portfolio": {
+    "widget": {
+      "name": "portfolioWidget",
+      "found": true,
+      "textSample": "󰇱 Portfolio",
+      "bbox": {
+        "x": 10,
+        "y": 226,
+        "w": 66,
+        "h": 66
+      },
+      "parentLandmark": "[data-testid=\"navigationItem-portfolio\"]",
+      "locators": [
+        {
+          "strategy": "data-testid",
+          "selector": "[data-testid=\"navigationItem-portfolio\"]",
+          "stability": 1
+        },
+        {
+          "strategy": "class-fragment",
+          "selector": "div[class*=\"flex-ff5rfy6\"]",
+          "stability": 3
+        },
+        {
+          "strategy": "textContent",
+          "selector": "text=\"󰇱 Portfolio\"",
+          "stability": 4
+        }
+      ]
+    },
+    "usdBalance": {
+      "name": "usdBalance",
+      "found": false
+    },
+    "btcBalance": {
+      "name": "btcBalance",
+      "found": false
+    },
+    "available": {
+      "name": "available",
+      "found": true,
+      "textSample": "BID (USD) AMOUNT (BTC) ASK (USD) AMOUNT (BTC) No data currently available for this market",
+      "bbox": {
+        "x": 489,
+        "y": 157,
+        "w": 268,
+        "h": 413
+      },
+      "parentLandmark": "[data-testid=\"spot-advanced-trade-ui\"]",
+      "locators": [
+        {
+          "strategy": "class-fragment",
+          "selector": "div[class*=\"flexlayout__tab\"]",
+          "stability": 3
+        },
+        {
+          "strategy": "textContent",
+          "selector": "text=\"BID (USD) AMOUNT (BTC) ASK (USD) AMOUNT (BTC) No data currently available for this market\"",
+          "stability": 4
+        }
+      ]
+    },
+    "holds": {
+      "name": "holds",
+      "found": false
+    }
+  },
+  "tabs": {
+    "openOrders": {
+      "name": "openOrdersTab",
+      "found": false
+    },
+    "orderHistory": {
+      "name": "orderHistoryTab",
+      "found": false
+    }
+  }
+}

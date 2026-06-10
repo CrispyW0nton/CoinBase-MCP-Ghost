@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.3.0 — Pass 2 native recon + inert feature layer
+
+Pass 2 ran against the local signed-in Coinbase Chrome tab on
+`https://www.coinbase.com/advanced-portfolio` and produced a real recon folder:
+`recon/btc-usd-2026-06-10T20-48-37-731Z/`.
+
+### Added
+
+- Portfolio/trade view support: `tabUrlContains` now accepts both
+  `coinbase.com/advanced-trade` and `coinbase.com/advanced-portfolio`, with
+  strict Coinbase advanced-route matching and no fallback to arbitrary tabs.
+- Real two-view recon: `coinbase_recon` captures portfolio and trade DOM maps,
+  real screenshots, CSP/REST observations, and a no-click behavioral report.
+- L2 order-book imbalance signal from live observed market data. When CDP does
+  not expose WS frames, the stream records `domFallback:true` and derives L2
+  snapshots from Coinbase's live-changing rendered order book, still with no
+  Coinbase API/SDK/socket opened by MCP. Harris Ch.6-7 informs the depth
+  imbalance measure; Kleppmann Ch.11 informs gap/ring/journal handling.
+- PAPER P&L ledger: simulated fills update running position, realized and
+  unrealized P&L with decimal.js, and `coinbase_paper_ledger` exposes advisory
+  half-Kelly output.
+- `coinbase_confirm_live`: explicit LIVE-ladder confirmation stub. It records
+  the operator phrase but never arms live submission.
+- `coinbase_reconcile_preview_intent`: pure preview-vs-intent diff with no
+  DOM interaction.
+- Half-Kelly advisory sizing from measured PAPER outcomes. Grinold-Kahn's
+  IR≈IC·sqrt(breadth), Chan's Kelly discipline, Lopez de Prado's overfitting
+  warnings, Kahneman's bias guardrails, and Harris microstructure costs are
+  cited in code and docs.
+
+### Observed live behavior
+
+- `coinbase_attach` matched the signed-in portfolio and trade views.
+- The trade DOM showed a live-changing BTC-USD order book and the stream filled
+  the journal/ring with DOM-derived L2/tick/signal events.
+- CDP `Network.webSocketFrameReceived` exposed zero WS frames in this run; the
+  real `network-map.json` records no WS endpoints/channels and one observed
+  Coinbase kill-switch REST poll. This is captured as fact, not papered over.
+
+### Safety
+
+- Removed the prior behavioral Sell-toggle click. Recon now performs no
+  Buy/Sell/Preview/Place clicks.
+- `placeOrder()` remains `dryRun:true`; OBSERVE_ONLY and LIVE remain inert.
+
 ## 0.2.0 — Coinbase MCP Ghost (recon pass)
 
 First-pass conversion from a Brightspace course-scraping MCP
