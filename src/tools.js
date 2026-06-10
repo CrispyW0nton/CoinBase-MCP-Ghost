@@ -13,6 +13,7 @@ import {
   reconcilePreviewIntent as coinbaseReconcilePreviewIntent,
   diagnoseTransport as coinbaseDiagnoseTransport
 } from "./coinbase.js";
+import { replayBacktest as coinbaseBacktest } from "./replay.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
 
@@ -215,6 +216,27 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_backtest",
+    description: "OFFLINE ONLY. Replay journal JSONL through the same causal order-book-imbalance signal layer, compute IC/train-test/deflated-Sharpe metrics, and write research/IC_REPORT_<UTC>.md. No Chrome, Coinbase REST/SDK, sockets, credentials, or clicks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        journalDir: { type: "string", default: "journal" },
+        files: { type: "array", items: { type: "string" } },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 },
+        trials: { type: "number", default: 1 },
+        outputDir: { type: "string", default: "research" },
+        writeReport: { type: "boolean", default: true }
+      }
+    }
+  },
+  {
     name: "coinbase_attach",
     description: "Attach (fail-closed) to an already-open, already-signed-in Coinbase Advanced Trade tab in the debug profile. Returns { attached, signedIn, tab, probeResults }. Never falls back to an unrelated tab.",
     inputSchema: {
@@ -351,6 +373,8 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbaseAttach(args), null, 2));
     case "coinbase_diagnose_transport":
       return textResult(JSON.stringify(await coinbaseDiagnoseTransport(args), null, 2));
+    case "coinbase_backtest":
+      return textResult(JSON.stringify(await coinbaseBacktest(args), null, 2));
     case "coinbase_recon":
       return textResult(JSON.stringify(await coinbaseRecon(args), null, 2));
     case "coinbase_market_stream":

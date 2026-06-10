@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.5.0 - Pass 4 offline IC replay research
+
+Pass 4 adds a pure offline research harness for the existing order-book
+imbalance signal. It does not attach to Chrome, open sockets, call Coinbase
+REST/SDKs, click the UI, or alter the inert LIVE ladder.
+
+### Added
+
+- `src/signal.js`: shared Decimal order-book-imbalance signal module used by
+  both live streaming and replay.
+- `src/replay.js`: deterministic journal replay over JSONL files, chronological
+  train/test IC metrics, breadth/autocorrelation flags, and approximate
+  deflated-Sharpe false-positive controls.
+- `coinbase_backtest` MCP tool and `npm run backtest` CLI entry.
+- `research/IC_REPORT_<UTC>.md` output with data inventory, source/degraded
+  percentages, result table, and plain-English verdict.
+- Smoke assertions for deterministic replay, causal/no-lookahead signal
+  generation, and low-confidence labeling for DOM-sourced reports.
+
+### Verdict discipline
+
+- Results from `source:"dom"`, degraded, or missing-provenance journal records
+  are labeled **low-confidence / DOM-sourced** everywhere.
+- The current local journal volume is not enough for a meaningful edge claim.
+  The correct verdict is inconclusive until substantially more independent,
+  preferably sequenced/high-confidence observations are recorded.
+- No signal tuning or live sizing was added. Kelly/live paths remain guarded
+  and refuse degraded/non-WS inputs.
+
 ## 0.4.0 — Pass 3 transport diagnostic + provenance
 
 Pass 3 answered the data-integrity question raised by Pass 2: can Coinbase's

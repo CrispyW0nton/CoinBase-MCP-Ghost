@@ -12,3 +12,9 @@
    (Kleppmann). All prices decimal (Harris Ch.4). Build dollar/volume bars per
    **AFML Ch.2**, not naive time bars. Kelly sizing must refuse degraded DOM
    samples (Kahneman + Lopez de Prado).
+5. `coinbase_backtest` or `npm run backtest -- --symbol BTC-USD` — offline
+   replay only. Measure Spearman IC chronologically (train/test), report
+   breadth/autocorrelation and deflated-Sharpe controls, and keep every
+   DOM/degraded/missing-provenance result labeled **low-confidence /
+   DOM-sourced**. A small in-sample win is not an edge claim (Grinold-Kahn,
+   Lopez de Prado, Kahneman, Taleb).

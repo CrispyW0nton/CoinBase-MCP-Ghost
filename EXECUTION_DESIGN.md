@@ -123,6 +123,14 @@ Harris on market microstructure observation quality, Kleppmann on sequenced
 stream reliability, Lopez de Prado on low-quality samples, and Kahneman on
 operator overconfidence.
 
+Pass 4 adds offline IC research only. `coinbase_backtest` and `npm run backtest`
+read existing journal JSONL, replay the same imbalance signal causally, and
+write `research/IC_REPORT_<UTC>.md`. The report is advisory research, not an
+execution input: it cannot arm `LIVE`, cannot change `placeOrder`, and cannot
+override Kelly's refusal of degraded/non-WS inputs. A DOM-sourced or
+missing-provenance IC result must remain labeled low-confidence even when the
+number is positive.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to

@@ -2,14 +2,14 @@
 // ---------------------------------------------------------------------------
 // Plain-Node smoke test (no test framework). Two modes:
 //
-//   LIVE smoke (default when a Coinbase debug tab is reachable):
+//   LIVE smoke (opt-in with CMCP_LIVE_SMOKE=1 when a Coinbase debug tab is reachable):
 //     1. (Optionally) launch Chrome via scripts/launch-chrome-coinbase.ps1.
 //     2. coinbase_attach  -> assert signedIn === true.
 //     3. coinbase_market_stream 30s -> assert >=1 tick, >=1 L2, >=1 trade, 0 gaps.
 //     4. coinbase_portfolio_snapshot -> assert balances parse.
 //     5. coinbase_place_order (dryRun) -> assert simulated fill + journal line.
 //
-//   OFFLINE smoke (when no debug endpoint / running in CI/sandbox):
+//   OFFLINE smoke (default):
 //     Exercises the pure logic that does NOT need a browser: schema
 //     normalization (decimal.js), frame parsing, ring buffer, journal write,
 //     and the place_order risk gate. This keeps `npm run smoke` green in
@@ -29,6 +29,7 @@ import {
 } from "../src/schema.js";
 import { RingBuffer, JsonlJournal } from "../src/journal.js";
 import { parseCoinbaseFrame, reconcilePreviewIntent, confirmLive, paperLedgerState } from "../src/coinbase.js";
+import { replayEvents, replayBacktest } from "../src/replay.js";
 
 let failures = 0;
 function check(name, fn) {
@@ -178,6 +179,46 @@ async function offlineSuite() {
     const ledger = await paperLedgerState();
     assert.equal(ledger.kelly.halfKellyFraction, "0");
   });
+
+  await check("replay is deterministic for identical inputs", () => {
+    const events = [
+      makeL2Update({ ts: 1, symbol: "BTC-USD", side: "bid", px: "100", sz: "2", source: "dom", hasSequence: false }),
+      makeL2Update({ ts: 2, symbol: "BTC-USD", side: "ask", px: "102", sz: "1", source: "dom", hasSequence: false }),
+      makeL2Update({ ts: 3, symbol: "BTC-USD", side: "bid", px: "101", sz: "1", source: "dom", hasSequence: false }),
+      makeL2Update({ ts: 4, symbol: "BTC-USD", side: "ask", px: "103", sz: "1", source: "dom", hasSequence: false })
+    ];
+    const a = replayEvents(events, { horizonObservations: 1 });
+    const b = replayEvents(events, { horizonObservations: 1 });
+    assert.deepEqual(a.observations, b.observations);
+    assert.deepEqual(a.metrics, b.metrics);
+  });
+
+  await check("replay is causal: first signal cannot use future ask depth", () => {
+    const events = [
+      makeL2Update({ ts: 1, symbol: "BTC-USD", side: "bid", px: "100", sz: "2", source: "dom", hasSequence: false }),
+      makeL2Update({ ts: 2, symbol: "BTC-USD", side: "ask", px: "102", sz: "100", source: "dom", hasSequence: false })
+    ];
+    const replay = replayEvents(events, { horizonObservations: 1 });
+    assert.equal(replay.observations[0].signal, "1");
+    assert.equal(replay.observations[0].mid, null);
+    assert.equal(replay.observations[1].signal, "-0.96078431372549019608");
+  });
+
+  await check("DOM-sourced backtest report is labeled low-confidence", async () => {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-replay-"));
+    const file = path.join(baseDir, "events.jsonl");
+    const lines = [
+      serializeEvent(makeL2Update({ ts: 1, symbol: "BTC-USD", side: "bid", px: "100", sz: "2", source: "dom", hasSequence: false })),
+      serializeEvent(makeL2Update({ ts: 2, symbol: "BTC-USD", side: "ask", px: "102", sz: "1", source: "dom", hasSequence: false })),
+      serializeEvent(makeL2Update({ ts: 3, symbol: "BTC-USD", side: "bid", px: "101", sz: "1", source: "dom", hasSequence: false }))
+    ].map(JSON.stringify).join("\n");
+    fs.writeFileSync(file, lines + "\n", "utf8");
+    const result = await replayBacktest({ files: [file], outputDir: baseDir, horizonObservations: 1 });
+    const report = fs.readFileSync(result.reportPath, "utf8");
+    assert.match(report, /low-confidence \/ DOM-sourced/);
+    assert.equal(result.inventory.bySource.dom, 3);
+    assert.equal(result.inventory.dataQualityCeiling, "low-confidence / DOM-sourced or missing-provenance");
+  });
 }
 
 // --- LIVE suite (only when a Coinbase debug tab is reachable) -------------
@@ -233,7 +274,8 @@ async function main() {
   await offlineSuite();
 
   const cfg = loadConfig();
-  const reachable = await isDebugEndpointReady(cfg.debugUrl);
+  const liveOptIn = process.env.CMCP_LIVE_SMOKE === "1";
+  const reachable = liveOptIn && await isDebugEndpointReady(cfg.debugUrl);
   if (reachable) {
     try {
       await liveSuite();
@@ -242,8 +284,9 @@ async function main() {
       failures++;
     }
   } else {
-    console.log(`[live] skipped — no Chrome debug endpoint at ${cfg.debugUrl}.`);
-    console.log("        Run scripts/launch-chrome-coinbase.ps1 and sign in to enable the live suite.");
+    console.log(liveOptIn
+      ? `[live] skipped — no Chrome debug endpoint at ${cfg.debugUrl}.`
+      : "[live] skipped — set CMCP_LIVE_SMOKE=1 to opt in.");
   }
 
   console.log(failures === 0 ? "\nSMOKE OK" : `\nSMOKE FAILED (${failures})`);

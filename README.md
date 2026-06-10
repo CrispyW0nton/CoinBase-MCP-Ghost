@@ -7,7 +7,9 @@ portfolio reconnaissance**. It opens no socket of its own, holds no
 credentials, and places **no orders**. Pass 2 also adds an inert signal layer,
 PAPER P&L ledger, preview reconciliation, and a stubbed LIVE confirmation tool.
 Pass 3 adds transport diagnostics and explicit data provenance on every market
-event and derived value.
+event and derived value. Pass 4 adds an **offline-only** replay/backtest path
+for measuring the order-book-imbalance signal's information coefficient from
+already-recorded journal JSONL.
 
 > Forked from `chrome-course-mcp` (a Brightspace page collector). The JSON-RPC
 > stdio shell and the `ChromeSession` CDP client are reused as-is and extended.
@@ -101,6 +103,7 @@ Leave this window open while you use the MCP.
 |---|---|
 | `coinbase_attach` | Fail-closed attach to the Advanced Trade tab; returns `{ attached, signedIn, tab, probeResults }`. Other Coinbase tools refuse when `signedIn === false`. |
 | `coinbase_diagnose_transport` | Passive WS/SSE/poll/WebTransport diagnostic. Attaches before same-tab navigation, checks page and worker targets, and writes a `WS TAP VIABLE` verdict. |
+| `coinbase_backtest` | **Offline only.** Replays journal JSONL through the same causal imbalance signal layer, computes train/test Spearman IC, breadth, deflated-Sharpe controls, and writes `research/IC_REPORT_<UTC>.md`. No Chrome, REST, SDK, sockets, credentials, or clicks. |
 | `coinbase_recon` | One-shot deep recon → `recon/<symbol>-<ts>/` (`dom-map.json`, `network-map.json`, `behavioral.json`, `screenshots/`, `RECON_REPORT.md`). Never submits an order. |
 | `coinbase_market_stream` | Prefers sequenced WS frames when available. If unavailable, uses loud DOM fallback only, with degraded provenance and no sequence-gap claims. |
 | `coinbase_snapshot_state` | Reads the in-memory ring buffer (counts, last tick/trade, recent N events). |
@@ -139,15 +142,38 @@ reference library.
 
 ---
 
+## Offline IC research
+
+Run the backtest without attaching to Chrome:
+
+```powershell
+npm run backtest -- --symbol BTC-USD --horizonObservations 1
+```
+
+This reads `journal/<symbol>/*.jsonl`, sorts events deterministically, replays
+only causal book state through the shared imbalance signal, and measures the
+rank correlation between the signal and forward recorded mid/price returns.
+The report includes chronological train/test IC, standard errors, t-stats,
+breadth/autocorrelation flags, deflated Sharpe, and the number of parameter
+trials counted.
+
+Important limitation: the current local journal is dominated by DOM fallback or
+missing-provenance records. Any result from that data is labeled
+**low-confidence / DOM-sourced** and is not eligible for sizing or live
+execution.
+
+---
+
 ## Verify
 
 ```powershell
 npm run check   # syntax-checks every source + test file
-npm run smoke   # offline core invariants always run;
-                # the live CDP suite runs automatically if a debug tab is up
+npm run smoke   # offline core invariants only by default
+npm run backtest -- --symbol BTC-USD --horizonObservations 1
 ```
 
-The live smoke suite asserts: `coinbase_attach` → `signedIn === true`;
+For an explicit live diagnostic smoke, opt in with `CMCP_LIVE_SMOKE=1`. That
+suite asserts: `coinbase_attach` → `signedIn === true`;
 `coinbase_market_stream` 30s → live tick/L2/signal data and 0 gaps;
 `coinbase_portfolio_snapshot` balances parse; `coinbase_place_order` (dryRun)
 returns a structured response (+ a journal line in PAPER mode).

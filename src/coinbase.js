@@ -28,9 +28,15 @@ import {
   makeTick, makeL2Update, makeTrade, makeCandle, makeGap,
   serializeEvent, dec, Decimal
 } from "./schema.js";
+import {
+  OrderBookImbalanceSignal,
+  SOURCES,
+  decimalMapSet,
+  confidenceFor,
+  degradedReasonFor
+} from "./signal.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
-const SOURCES = Object.freeze({ WS: "ws", SSE: "sse", POLL: "poll", DOM: "dom" });
 
 const ADVANCED_VIEW_RE = /https:\/\/www\.coinbase\.com\/advanced-(trade|portfolio)(?:\/|$|\?)/i;
 
@@ -198,7 +204,7 @@ async function requireSignedInTab({ debugUrl, urlContains } = {}) {
 // measured out of sample.
 // ---------------------------------------------------------------------------
 
-const book = { bid: new Map(), ask: new Map(), lastSignal: null };
+const book = new OrderBookImbalanceSignal({ levels: 10 });
 const paperLedger = {
   positionBase: new Decimal(0),
   avgCostUsd: new Decimal(0),
@@ -209,56 +215,13 @@ const paperLedger = {
   outcomes: []
 };
 
-function decimalMapSet(map, px, sz) {
-  if (!px || !sz) return;
-  const qty = dec(sz);
-  const price = dec(px);
-  if (!qty || !price) return;
-  const key = price.toString();
-  if (qty.isZero()) map.delete(key);
-  else map.set(key, qty);
-}
-
 function depth(side, levels = 10) {
-  const entries = [...book[side].entries()].map(([px, sz]) => ({ px: dec(px), sz }));
-  entries.sort((a, b) => side === "bid" ? b.px.comparedTo(a.px) : a.px.comparedTo(b.px));
-  return entries.slice(0, levels).reduce((sum, level) => sum.plus(level.sz), new Decimal(0));
-}
-
-function confidenceFor({ source, hasSequence }) {
-  return source === SOURCES.WS && hasSequence === true ? "high" : "low";
-}
-
-function degradedReasonFor({ source, hasSequence }) {
-  if (source !== SOURCES.WS) return `${source} source is not exchange-sequenced`;
-  if (hasSequence !== true) return "missing sequence_num";
-  return null;
+  return book.depth(side, levels);
 }
 
 function maybeEmitImbalanceSignal({ ts, symbol, seq, source = SOURCES.WS, ageMs = 0, hasSequence = seq !== null }) {
-  const bidDepth = depth("bid");
-  const askDepth = depth("ask");
-  const total = bidDepth.plus(askDepth);
-  if (total.isZero()) return null;
-  const value = bidDepth.minus(askDepth).div(total);
-  const signal = {
-    type: "imbalanceSignal",
-    ts: ts ?? Date.now(),
-    symbol,
-    name: "l2_depth_imbalance",
-    value,
-    bidDepth,
-    askDepth,
-    levels: 10,
-    seq: seq ?? null,
-    source,
-    ageMs,
-    hasSequence,
-    confidence: confidenceFor({ source, hasSequence }),
-    degraded: confidenceFor({ source, hasSequence }) !== "high",
-    degradedReason: degradedReasonFor({ source, hasSequence })
-  };
-  book.lastSignal = signal;
+  const signal = book.createSignal({ ts, symbol, seq, source, ageMs, hasSequence });
+  if (!signal) return null;
   ring.push(signal);
   journal?.append(signal);
   return signal;
