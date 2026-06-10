@@ -1,8 +1,10 @@
 node_modules/
 *.log
 .env
-downloads/
-manifests/
 
-HostHavocProfile/
-artifacts/
+# Runtime captures — keep the committed TEMPLATE, ignore real timestamped runs.
+recon/btc-usd-2*/
+journal/
+
+# Coinbase debug profile (never committed; lives under %LOCALAPPDATA%).
+CoinbaseMCPProfile/

@@ -1,9 +1,14 @@
 import fs from "node:fs/promises";
-import fsSync from "node:fs";
 import path from "node:path";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import { launchChromeDebug, listTabs, openNewTab, withSession } from "./chrome.js";
+import {
+  attach as coinbaseAttach,
+  recon as coinbaseRecon,
+  marketStream as coinbaseMarketStream,
+  snapshotState as coinbaseSnapshotState,
+  portfolioSnapshot as coinbasePortfolioSnapshot,
+  placeOrder as coinbasePlaceOrder
+} from "./coinbase.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
 
@@ -193,78 +198,78 @@ export const tools = [
     }
   },
   {
-    name: "chrome_save_page",
-    description: "Save the selected Chrome tab as HTML and/or PDF.",
+    name: "coinbase_attach",
+    description: "Attach (fail-closed) to an already-open, already-signed-in Coinbase Advanced Trade tab in the debug profile. Returns { attached, signedIn, tab, probeResults }. Never falls back to an unrelated tab.",
     inputSchema: {
       type: "object",
-      required: ["outputDir"],
       properties: {
         debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
-        tabId: { type: "string" },
-        urlContains: { type: "string" },
-        titleContains: { type: "string" },
-        outputDir: { type: "string" },
-        baseName: { type: "string" },
-        html: { type: "boolean", default: true },
-        pdf: { type: "boolean", default: false },
-        landscape: { type: "boolean", default: false }
+        urlContains: { type: "string", default: "coinbase.com/advanced-trade" }
       }
     }
   },
   {
-    name: "chrome_download_urls",
-    description: "Download authorized direct URLs using cookies from the selected Chrome tab.",
+    name: "coinbase_recon",
+    description: "One-shot deep reconnaissance of the live Advanced Trade page. Writes ./recon/<symbol>-<ts>/ (dom-map.json, network-map.json, behavioral.json, screenshots/, RECON_REPORT.md). Read-only; never submits an order.",
     inputSchema: {
       type: "object",
-      required: ["urls", "outputDir"],
       properties: {
         debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
-        tabId: { type: "string" },
-        urlContains: { type: "string" },
-        titleContains: { type: "string" },
-        urls: { type: "array", items: { type: "string" } },
-        outputDir: { type: "string" },
-        overwrite: { type: "boolean", default: false }
+        urlContains: { type: "string", default: "coinbase.com/advanced-trade" },
+        networkSeconds: { type: "number", default: 60 },
+        sampleSeconds: { type: "number", default: 30 },
+        outputRoot: { type: "string" }
       }
     }
   },
   {
-    name: "brightspace_collect_current",
-    description: "Create a Brightspace-oriented manifest from the selected course/module page.",
+    name: "coinbase_market_stream",
+    description: "Mirror the page's own Coinbase WebSocket frames over CDP for durationMs, normalize into Tick/L2Update/Trade/Candle (decimal.js), fan out to an in-memory ring buffer + append-only JSONL journal, and detect sequence gaps. Read-only; opens no socket of its own.",
     inputSchema: {
       type: "object",
-      required: ["outputDir"],
       properties: {
         debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
-        tabId: { type: "string" },
-        urlContains: { type: "string" },
-        titleContains: { type: "string" },
-        outputDir: { type: "string" },
-        courseCode: { type: "string" },
-        saveHtml: { type: "boolean", default: true },
-        savePdf: { type: "boolean", default: false }
+        urlContains: { type: "string", default: "coinbase.com/advanced-trade" },
+        durationMs: { type: "number", default: 30000 }
       }
     }
   },
   {
-    name: "brightspace_archive_links",
-    description: "Navigate through Brightspace links from the current tab or a provided URL list and save each page as a categorized manifest plus HTML/PDF.",
+    name: "coinbase_snapshot_state",
+    description: "Return the current in-memory ring-buffer state collected by coinbase_market_stream (counts, last tick/trade, recent N events).",
     inputSchema: {
       type: "object",
-      required: ["outputDir"],
+      properties: {
+        n: { type: "number", default: 200 }
+      }
+    }
+  },
+  {
+    name: "coinbase_portfolio_snapshot",
+    description: "Read balances + open orders directly from the Advanced Trade DOM (never from an API), using the discovered selectors with a stability-ranked fallback chain. Read-only.",
+    inputSchema: {
+      type: "object",
       properties: {
         debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
-        tabId: { type: "string" },
-        urlContains: { type: "string" },
-        titleContains: { type: "string" },
-        outputDir: { type: "string" },
-        courseCode: { type: "string" },
-        urls: { type: "array", items: { type: "string" } },
-        urlPattern: { type: "string" },
-        maxPages: { type: "number", default: 25 },
-        saveHtml: { type: "boolean", default: true },
-        savePdf: { type: "boolean", default: true },
-        delayMs: { type: "number", default: 1000 }
+        urlContains: { type: "string", default: "coinbase.com/advanced-trade" }
+      }
+    }
+  },
+  {
+    name: "coinbase_place_order",
+    description: "EXECUTION SCAFFOLD (dryRun hardcoded true). Validates a would-be order against config risk limits (mode/killSwitch/maxNotionalUsd). OBSERVE_ONLY rejects all; PAPER logs a simulated fill at best bid/ask. NEVER clicks the order form. No real order is ever placed in this pass.",
+    inputSchema: {
+      type: "object",
+      required: ["side", "type", "clientOrderId"],
+      properties: {
+        side: { type: "string", enum: ["buy", "sell"] },
+        type: { type: "string", enum: ["market", "limit"] },
+        baseSize: { type: "string" },
+        quoteSize: { type: "string" },
+        limitPrice: { type: "string" },
+        timeInForce: { type: "string", enum: ["GTC", "IOC", "FOK"], default: "GTC" },
+        clientOrderId: { type: "string" },
+        dryRun: { type: "boolean", default: true }
       }
     }
   }
@@ -296,14 +301,18 @@ export async function callTool(name, args) {
       return textResult(await chromeEval(args));
     case "chrome_extract_media":
       return textResult(await chromeExtractMedia(args));
-    case "chrome_save_page":
-      return textResult(await chromeSavePage(args));
-    case "chrome_download_urls":
-      return textResult(await chromeDownloadUrls(args));
-    case "brightspace_collect_current":
-      return textResult(await brightspaceCollectCurrent(args));
-    case "brightspace_archive_links":
-      return textResult(await brightspaceArchiveLinks(args));
+    case "coinbase_attach":
+      return textResult(JSON.stringify(await coinbaseAttach(args), null, 2));
+    case "coinbase_recon":
+      return textResult(JSON.stringify(await coinbaseRecon(args), null, 2));
+    case "coinbase_market_stream":
+      return textResult(JSON.stringify(await coinbaseMarketStream(args), null, 2));
+    case "coinbase_snapshot_state":
+      return textResult(JSON.stringify(await coinbaseSnapshotState(args), null, 2));
+    case "coinbase_portfolio_snapshot":
+      return textResult(JSON.stringify(await coinbasePortfolioSnapshot(args), null, 2));
+    case "coinbase_place_order":
+      return textResult(JSON.stringify(await coinbasePlaceOrder(args), null, 2));
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -454,218 +463,6 @@ async function chromeExtractMedia(args) {
   });
 }
 
-async function chromeSavePage(args) {
-  const outputDir = args.outputDir;
-  if (!outputDir) throw new Error("outputDir is required");
-
-  return withSession(args, async (session, tab) => {
-    await ensureDir(outputDir);
-    const baseName = safeName(args.baseName || tab.title || "chrome-page");
-    const files = [];
-
-    if (args.html !== false) {
-      const html = await session.evaluate("document.documentElement.outerHTML");
-      const file = uniquePath(path.join(outputDir, `${baseName}.html`), args.overwrite);
-      await fs.writeFile(file, html, "utf8");
-      files.push(file);
-    }
-
-    if (args.pdf === true) {
-      await session.command("Page.enable");
-      const printed = await session.command("Page.printToPDF", {
-        printBackground: true,
-        landscape: args.landscape === true,
-        preferCSSPageSize: true
-      });
-      const file = uniquePath(path.join(outputDir, `${baseName}.pdf`), args.overwrite);
-      await fs.writeFile(file, Buffer.from(printed.data, "base64"));
-      files.push(file);
-    }
-
-    return JSON.stringify({ saved: files, tab: pickPublicTab(tab) }, null, 2);
-  });
-}
-
-async function chromeDownloadUrls(args) {
-  if (!Array.isArray(args.urls) || args.urls.length === 0) throw new Error("urls must contain at least one URL");
-  if (!args.outputDir) throw new Error("outputDir is required");
-
-  return withSession(args, async (session, tab) => {
-    await ensureDir(args.outputDir);
-    await session.command("Network.enable");
-    const cookies = await session.command("Network.getCookies", { urls: args.urls });
-    const cookieHeader = cookies.cookies.map(cookie => `${cookie.name}=${cookie.value}`).join("; ");
-    const userAgent = await session.evaluate("navigator.userAgent");
-    const results = [];
-
-    for (const url of args.urls) {
-      const output = await downloadUrl(url, args.outputDir, {
-        cookieHeader,
-        referer: tab.url,
-        userAgent,
-        overwrite: args.overwrite === true
-      });
-      results.push(output);
-    }
-
-    return JSON.stringify({ downloads: results }, null, 2);
-  });
-}
-
-async function brightspaceCollectCurrent(args) {
-  if (!args.outputDir) throw new Error("outputDir is required");
-
-  return withSession(args, async (session, tab) => {
-    await ensureDir(args.outputDir);
-    const extraction = await session.evaluate(extractionScript());
-    const courseCode = safeName(args.courseCode || detectCourseCode(tab, extraction) || "course");
-    const pageName = safeName(extraction.title || tab.title || "module-page");
-    const pageDir = path.join(args.outputDir, courseCode, pageName);
-    await ensureDir(pageDir);
-
-    const manifest = {
-      collectedAt: new Date().toISOString(),
-      tab: pickPublicTab(tab),
-      courseCode,
-      pageName,
-      extraction,
-      notes: [
-        "Download only materials you are authorized to access.",
-        "HLS manifests, streaming players, and DRM-protected videos are reported but not converted by this MCP."
-      ]
-    };
-
-    const manifestPath = path.join(pageDir, "manifest.json");
-    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
-
-    const saved = [manifestPath];
-    if (args.saveHtml !== false) {
-      const html = await session.evaluate("document.documentElement.outerHTML");
-      const htmlPath = path.join(pageDir, `${pageName}.html`);
-      await fs.writeFile(htmlPath, html, "utf8");
-      saved.push(htmlPath);
-    }
-
-    if (args.savePdf === true) {
-      await session.command("Page.enable");
-      const printed = await session.command("Page.printToPDF", {
-        printBackground: true,
-        preferCSSPageSize: true
-      });
-      const pdfPath = path.join(pageDir, `${pageName}.pdf`);
-      await fs.writeFile(pdfPath, Buffer.from(printed.data, "base64"));
-      saved.push(pdfPath);
-    }
-
-    return JSON.stringify({ saved, mediaCandidates: extraction.media.length, documentCandidates: extraction.documents.length }, null, 2);
-  });
-}
-
-async function brightspaceArchiveLinks(args) {
-  if (!args.outputDir) throw new Error("outputDir is required");
-
-  return withSession(args, async (session, tab) => {
-    await session.command("Page.enable");
-    await ensureDir(args.outputDir);
-
-    const startExtraction = await session.evaluate(extractionScript());
-    const courseCode = safeName(args.courseCode || detectCourseCode(tab, startExtraction) || "course");
-    const pattern = args.urlPattern ? new RegExp(args.urlPattern, "i") : null;
-    const sourceUrls = Array.isArray(args.urls) && args.urls.length > 0
-      ? args.urls
-      : startExtraction.brightspaceLinks.map(link => link.url);
-    const urls = uniqueStrings(sourceUrls)
-      .filter(url => !pattern || pattern.test(url))
-      .slice(0, Number(args.maxPages || 25));
-
-    const pages = [];
-    for (const url of urls) {
-      const load = session.waitForEvent("Page.loadEventFired", 30000).catch(err => ({ warning: err.message }));
-      await session.command("Page.navigate", { url });
-      await load;
-      await sleep(Number(args.delayMs ?? 1000));
-
-      const extraction = await session.evaluate(extractionScript());
-      const pageName = safeName(extraction.title || "module-page");
-      const pageDir = path.join(args.outputDir, courseCode, pageName);
-      await ensureDir(pageDir);
-
-      const manifestPath = path.join(pageDir, "manifest.json");
-      const manifest = {
-        collectedAt: new Date().toISOString(),
-        sourceUrl: url,
-        courseCode,
-        pageName,
-        extraction,
-        notes: [
-          "Download only materials you are authorized to access.",
-          "This archive tool navigates the selected Chrome tab."
-        ]
-      };
-      await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
-
-      const saved = [manifestPath];
-      if (args.saveHtml !== false) {
-        const html = await session.evaluate("document.documentElement.outerHTML");
-        const htmlPath = path.join(pageDir, `${pageName}.html`);
-        await fs.writeFile(htmlPath, html, "utf8");
-        saved.push(htmlPath);
-      }
-
-      if (args.savePdf !== false) {
-        const printed = await session.command("Page.printToPDF", {
-          printBackground: true,
-          preferCSSPageSize: true
-        });
-        const pdfPath = path.join(pageDir, `${pageName}.pdf`);
-        await fs.writeFile(pdfPath, Buffer.from(printed.data, "base64"));
-        saved.push(pdfPath);
-      }
-
-      pages.push({
-        url,
-        pageName,
-        saved,
-        mediaCandidates: extraction.media.length,
-        documentCandidates: extraction.documents.length
-      });
-    }
-
-    return JSON.stringify({ archived: pages.length, pages }, null, 2);
-  });
-}
-
-async function downloadUrl(url, outputDir, { cookieHeader, referer, userAgent, overwrite }) {
-  const headers = {
-    Referer: referer,
-    "User-Agent": userAgent || "chrome-course-mcp/0.1"
-  };
-  if (cookieHeader) headers.Cookie = cookieHeader;
-
-  const response = await fetch(url, {
-    headers,
-    redirect: "follow"
-  });
-
-  if (!response.ok) {
-    return { url, ok: false, status: response.status, statusText: response.statusText };
-  }
-
-  const fileName = safeName(fileNameFromResponse(url, response));
-  const filePath = uniquePath(path.join(outputDir, fileName), overwrite);
-  await pipeline(Readable.fromWeb(response.body), fsSync.createWriteStream(filePath));
-  const stat = await fs.stat(filePath);
-
-  return {
-    url,
-    ok: true,
-    status: response.status,
-    contentType: response.headers.get("content-type"),
-    bytes: stat.size,
-    filePath
-  };
-}
-
 function extractionScript() {
   return `(() => {
     const absolute = value => {
@@ -708,8 +505,7 @@ function extractionScript() {
         text: text(anchor.innerText || anchor.textContent || anchor.title),
         title: text(anchor.title),
         download: anchor.download || "",
-        extension: ext,
-        looksLikeBrightspaceContent: /\\/d2l\\/(le|lms|common|lp)\\//i.test(url || "")
+        extension: ext
       };
     });
 
@@ -728,14 +524,12 @@ function extractionScript() {
     const combined = [...videos, ...embedded, ...anchors, ...resources];
     const media = unique(combined.filter(item => mediaExts.has(item.extension) || /video|audio|media|m3u8|mpd/i.test(item.kind + " " + item.url)));
     const documents = unique(anchors.filter(item => docExts.has(item.extension)));
-    const brightspaceLinks = unique(anchors.filter(item => item.looksLikeBrightspaceContent));
 
     return {
       title: document.title,
       url: location.href,
       media,
       documents,
-      brightspaceLinks,
       iframes: unique([...document.querySelectorAll("iframe[src]")].map(iframe => ({
         kind: "iframe",
         url: absolute(iframe.src),
@@ -896,58 +690,10 @@ function pickPublicTab(tab) {
   return { id: tab.id, title: tab.title, url: tab.url };
 }
 
-function detectCourseCode(tab, extraction) {
-  const haystack = `${tab.title} ${tab.url} ${extraction.title}`.toLowerCase();
-  const match = haystack.match(/[a-z]{2,5}[_ -]?\\d{3}/i);
-  return match?.[0]?.replace(/[ -]/g, "_");
-}
-
 async function ensureDir(dir) {
   await fs.mkdir(dir, { recursive: true });
 }
 
-function safeName(value) {
-  const cleaned = String(value || "untitled")
-    .replace(/[<>:"/\\|?*\\u0000-\\u001f]/g, "_")
-    .replace(/\\s+/g, " ")
-    .trim()
-    .slice(0, 140);
-  return cleaned || "untitled";
-}
-
-function uniquePath(candidate, overwrite = false) {
-  if (overwrite) return candidate;
-  const parsed = path.parse(candidate);
-  let current = candidate;
-  let index = 2;
-  while (existsSyncish(current)) {
-    current = path.join(parsed.dir, `${parsed.name} (${index})${parsed.ext}`);
-    index += 1;
-  }
-  return current;
-}
-
-function existsSyncish(filePath) {
-  return fsSync.existsSync(filePath);
-}
-
-function uniqueStrings(values) {
-  return [...new Set(values.filter(Boolean))];
-}
-
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function fileNameFromResponse(url, response) {
-  const disposition = response.headers.get("content-disposition") || "";
-  const utfMatch = disposition.match(/filename\\*=UTF-8''([^;]+)/i);
-  if (utfMatch) return decodeURIComponent(utfMatch[1]);
-
-  const asciiMatch = disposition.match(/filename="?([^";]+)"?/i);
-  if (asciiMatch) return asciiMatch[1];
-
-  const parsed = new URL(url);
-  const name = decodeURIComponent(path.basename(parsed.pathname));
-  return name && name !== "/" ? name : "download.bin";
 }
