@@ -65,6 +65,8 @@ async function offlineSuite() {
     assert.equal(l2.events.length, 2);
     assert.equal(l2.events[1].side, "ask"); // offer normalized -> ask
     assert.equal(l2.sequenceNum, 5);
+    assert.equal(l2.events[0].source, "ws");
+    assert.equal(l2.events[0].hasSequence, true);
 
     const tk = parseCoinbaseFrame({
       channel: "ticker", timestamp: new Date().toISOString(),
@@ -117,6 +119,28 @@ async function offlineSuite() {
     assert.equal(cfg.maxNotionalUsd, 0);
     assert.ok(Array.isArray(cfg.tabUrlContains));
     assert.ok(cfg.tabUrlContains.some(item => item.includes("advanced-portfolio")));
+  });
+
+  await check("DOM-sourced event is degraded and never implies gap detection", () => {
+    const dom = makeL2Update({
+      symbol: "BTC-USD",
+      side: "bid",
+      px: "65000.00",
+      sz: "0.1",
+      source: "dom",
+      hasSequence: false,
+      confidence: "low",
+      degradedReason: "rendered DOM snapshot"
+    });
+    const serialized = serializeEvent(dom);
+    assert.equal(serialized.source, "dom");
+    assert.equal(serialized.hasSequence, false);
+    assert.equal(serialized.degraded, true);
+    let gaps = 0;
+    for (const seq of [null, null, null]) {
+      if (seq !== null) gaps++;
+    }
+    assert.equal(gaps, 0);
   });
 
   await check("imbalance signal serializes Decimal fields as strings", () => {
@@ -174,6 +198,12 @@ async function liveSuite() {
     assert.ok(stream.counts.l2 >= 1, "expected >=1 L2 update");
     assert.ok(stream.counts.signals >= 1, "expected >=1 imbalance signal");
     assert.equal(stream.counts.gaps, 0, "expected zero gaps in the window");
+    assert.ok(["ws", "dom"].includes(stream.source), "expected explicit stream source");
+    if (stream.source === "dom") {
+      assert.equal(stream.lastSignal.source, "dom");
+      assert.equal(stream.lastSignal.hasSequence, false);
+      assert.equal(stream.lastSignal.degraded, true);
+    }
   });
 
   const port = await mod.portfolioSnapshot({});

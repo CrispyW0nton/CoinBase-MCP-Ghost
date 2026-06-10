@@ -6,6 +6,8 @@ over the Chrome DevTools Protocol (CDP), and performs **market-data and
 portfolio reconnaissance**. It opens no socket of its own, holds no
 credentials, and places **no orders**. Pass 2 also adds an inert signal layer,
 PAPER P&L ledger, preview reconciliation, and a stubbed LIVE confirmation tool.
+Pass 3 adds transport diagnostics and explicit data provenance on every market
+event and derived value.
 
 > Forked from `chrome-course-mcp` (a Brightspace page collector). The JSON-RPC
 > stdio shell and the `ChromeSession` CDP client are reused as-is and extended.
@@ -24,7 +26,8 @@ receives** (`Network.webSocketFrameReceived` over CDP). That means:
   the page sees. If Chrome does not expose WS frames for the current Coinbase
   build, `coinbase_market_stream` marks `domFallback:true` and samples the
   live-changing rendered order book instead; still no Coinbase API, SDK, or
-  socket is opened by this MCP.
+  socket is opened by this MCP. DOM fallback events are explicitly
+  `source:"dom"`, `hasSequence:false`, `confidence:"low"`, and `degraded:true`.
 - **Fail-closed:** if no Advanced Trade tab is open in the dedicated debug
   profile, every tool refuses to run rather than acting on an unrelated tab.
 
@@ -97,8 +100,9 @@ Leave this window open while you use the MCP.
 | Tool | What it does |
 |---|---|
 | `coinbase_attach` | Fail-closed attach to the Advanced Trade tab; returns `{ attached, signedIn, tab, probeResults }`. Other Coinbase tools refuse when `signedIn === false`. |
+| `coinbase_diagnose_transport` | Passive WS/SSE/poll/WebTransport diagnostic. Attaches before same-tab navigation, checks page and worker targets, and writes a `WS TAP VIABLE` verdict. |
 | `coinbase_recon` | One-shot deep recon → `recon/<symbol>-<ts>/` (`dom-map.json`, `network-map.json`, `behavioral.json`, `screenshots/`, `RECON_REPORT.md`). Never submits an order. |
-| `coinbase_market_stream` | Mirrors the page's WS for `durationMs`, normalizes to Tick/L2Update/Trade/Candle (decimal.js), sinks to a ring buffer + append-only JSONL journal, detects sequence gaps. |
+| `coinbase_market_stream` | Prefers sequenced WS frames when available. If unavailable, uses loud DOM fallback only, with degraded provenance and no sequence-gap claims. |
 | `coinbase_snapshot_state` | Reads the in-memory ring buffer (counts, last tick/trade, recent N events). |
 | `coinbase_portfolio_snapshot` | Reads balances + open orders from the DOM (not an API). |
 | `coinbase_place_order` | **Execution scaffold.** `dryRun` hardcoded `true`. Validates against risk limits; OBSERVE_ONLY rejects all, PAPER logs a simulated fill. **Never clicks the order form.** |
@@ -151,6 +155,14 @@ returns a structured response (+ a journal line in PAPER mode).
 Pass 2 live recon is in `recon/btc-usd-2026-06-10T20-48-37-731Z/`. In that run,
 CDP exposed no Coinbase WS frames, while the rendered BTC-USD order book changed
 live; the network map records that explicitly.
+
+Pass 3 transport diagnostic is in `recon/btc-usd-2026-06-10T21-26-02-366Z/`.
+Verdict: **WS TAP VIABLE: NO** for this Chrome/Coinbase build. Early attach
+before navigation captured no WebSocket, EventSource message, or WebTransport
+frames on page or worker targets; it did observe Coinbase brokerage
+REST/`text/event-stream` endpoints. Because those stream bodies are not exposed
+as sequenced exchange frames through CDP here, downstream signals remain
+degraded when sourced from DOM fallback.
 
 ---
 

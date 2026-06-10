@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.4.0 — Pass 3 transport diagnostic + provenance
+
+Pass 3 answered the data-integrity question raised by Pass 2: can Coinbase's
+real-time market data be ghosted as sequenced WebSocket frames over CDP in this
+local Chrome build?
+
+### Verdict
+
+- Added `coinbase_diagnose_transport`, a passive diagnostic that enables
+  Network listeners before same-tab navigation, tests trade first and portfolio
+  second, and observes page plus worker/shared-worker/service-worker targets.
+- Real diagnostic artifact:
+  `recon/btc-usd-2026-06-10T21-26-02-366Z/`.
+- **WS TAP VIABLE: NO** in this run. No
+  `Network.webSocketCreated`/`Network.webSocketFrameReceived`, EventSource
+  message, or WebTransport events were captured after early attach/navigation.
+- Observed brokerage transport candidates on the page target:
+  `/api/v3/brokerage/stream/balance_summary`,
+  `/api/v3/brokerage/stream/products/BTC-USD/stats`,
+  `/api/v3/brokerage/products/BTC-USD/trades`, plus related product/stats
+  polling. Some responses are `text/event-stream`, but CDP did not expose
+  sequenced market-data messages from them.
+
+### Data provenance
+
+- Added `source`, `ageMs`, `hasSequence`, `confidence`, `degraded`, and
+  `degradedReason` to Tick/L2Update/Trade/Candle/Gap serialization.
+- WS-derived Coinbase frames are `source:"ws"` and high confidence only when a
+  `sequence_num` is present.
+- DOM fallback is now loud: `source:"dom"`, `hasSequence:false`,
+  `confidence:"low"`, `degraded:true`.
+- Gap detection is disabled for unsequenced/non-WS data. DOM snapshots can fill
+  the ring/journal for observation, but cannot produce false clean gap results.
+- Imbalance signals inherit source/degradation. PAPER fills record the quote
+  source used. Kelly sizing refuses degraded/non-WS PAPER outcomes.
+
+### Rationale
+
+- Harris: rendered depth is not the same observation quality as a sequenced
+  exchange feed.
+- Kleppmann: gap detection needs a reliable sequence.
+- Lopez de Prado and Kahneman: low-quality samples must not be promoted into
+  confident sizing decisions.
+
 ## 0.3.0 — Pass 2 native recon + inert feature layer
 
 Pass 2 ran against the local signed-in Coinbase Chrome tab on

@@ -34,7 +34,19 @@ function ser(value) {
   return value === null || value === undefined ? null : value.toString();
 }
 
-export function makeTick({ ts, symbol, bidPx, bidSz, askPx, askSz, lastPx, lastSz }) {
+function provenance({ source = "ws", ageMs = 0, hasSequence = false, confidence, degradedReason } = {}) {
+  const degraded = source !== "ws" || hasSequence !== true;
+  return {
+    source,
+    ageMs: ageMs ?? 0,
+    hasSequence: Boolean(hasSequence),
+    confidence: confidence ?? (degraded ? "low" : "high"),
+    degraded,
+    degradedReason: degradedReason ?? (degraded ? "unsequenced data source" : null)
+  };
+}
+
+export function makeTick({ ts, symbol, bidPx, bidSz, askPx, askSz, lastPx, lastSz, source, ageMs, hasSequence, confidence, degradedReason }) {
   return {
     type: "tick",
     ts: ts ?? Date.now(),
@@ -44,11 +56,12 @@ export function makeTick({ ts, symbol, bidPx, bidSz, askPx, askSz, lastPx, lastS
     askPx: dec(askPx),
     askSz: dec(askSz),
     lastPx: dec(lastPx),
-    lastSz: dec(lastSz)
+    lastSz: dec(lastSz),
+    ...provenance({ source, ageMs, hasSequence, confidence, degradedReason })
   };
 }
 
-export function makeL2Update({ ts, symbol, side, px, sz, isSnapshot = false, seq = null }) {
+export function makeL2Update({ ts, symbol, side, px, sz, isSnapshot = false, seq = null, source, ageMs, hasSequence, confidence, degradedReason }) {
   return {
     type: "l2update",
     ts: ts ?? Date.now(),
@@ -57,11 +70,12 @@ export function makeL2Update({ ts, symbol, side, px, sz, isSnapshot = false, seq
     px: dec(px),
     sz: dec(sz),
     isSnapshot: Boolean(isSnapshot),
-    seq
+    seq,
+    ...provenance({ source, ageMs, hasSequence: hasSequence ?? seq !== null, confidence, degradedReason })
   };
 }
 
-export function makeTrade({ ts, symbol, side, px, sz, tradeId }) {
+export function makeTrade({ ts, symbol, side, px, sz, tradeId, source, ageMs, hasSequence, confidence, degradedReason }) {
   return {
     type: "trade",
     ts: ts ?? Date.now(),
@@ -69,11 +83,12 @@ export function makeTrade({ ts, symbol, side, px, sz, tradeId }) {
     side, // "buy" | "sell" (aggressor side)
     px: dec(px),
     sz: dec(sz),
-    tradeId: tradeId ?? null
+    tradeId: tradeId ?? null,
+    ...provenance({ source, ageMs, hasSequence, confidence, degradedReason })
   };
 }
 
-export function makeCandle({ ts, symbol, granularitySec, o, h, l, c, v }) {
+export function makeCandle({ ts, symbol, granularitySec, o, h, l, c, v, source, ageMs, hasSequence, confidence, degradedReason }) {
   return {
     type: "candle",
     ts: ts ?? Date.now(),
@@ -83,18 +98,20 @@ export function makeCandle({ ts, symbol, granularitySec, o, h, l, c, v }) {
     h: dec(h),
     l: dec(l),
     c: dec(c),
-    v: dec(v)
+    v: dec(v),
+    ...provenance({ source, ageMs, hasSequence, confidence, degradedReason })
   };
 }
 
-export function makeGap({ ts, symbol, expectedSeq, gotSeq, channel }) {
+export function makeGap({ ts, symbol, expectedSeq, gotSeq, channel, source = "ws" }) {
   return {
     type: "gap",
     ts: ts ?? Date.now(),
     symbol,
     expectedSeq,
     gotSeq,
-    channel: channel ?? null
+    channel: channel ?? null,
+    ...provenance({ source, hasSequence: true, confidence: "high" })
   };
 }
 
@@ -102,6 +119,12 @@ export function makeGap({ ts, symbol, expectedSeq, gotSeq, channel }) {
 // where Decimals become strings. Used for the JSONL journal and tool output.
 export function serializeEvent(evt) {
   const out = { type: evt.type, ts: evt.ts, symbol: evt.symbol };
+  out.source = evt.source ?? null;
+  out.ageMs = evt.ageMs ?? null;
+  out.hasSequence = evt.hasSequence ?? null;
+  out.confidence = evt.confidence ?? null;
+  out.degraded = evt.degraded ?? null;
+  out.degradedReason = evt.degradedReason ?? null;
   switch (evt.type) {
     case "tick":
       out.bidPx = ser(evt.bidPx);

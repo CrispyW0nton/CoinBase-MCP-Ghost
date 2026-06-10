@@ -1,0 +1,291 @@
+{
+  "capturedAt": "2026-06-10T21:26:02.370Z",
+  "diagnostic": true,
+  "transportSummary": {
+    "wsTapViable": "no",
+    "reason": "No CDP WebSocket frames were captured after early attach/navigation; live data appears available through REST/polling and rendered DOM in this Chrome/Coinbase build.",
+    "wsTargets": [],
+    "sseTargets": [],
+    "pollTargets": [
+      {
+        "label": "primary-page-before-navigation",
+        "target": {
+          "id": "3C725666EBA9B615265500D1EFA336BA",
+          "type": "page",
+          "title": "Portfolio · Coinbase",
+          "url": "https://www.coinbase.com/advanced-portfolio"
+        },
+        "endpoints": [
+          {
+            "url": "/api/v3/brokerage/products",
+            "method": "GET",
+            "count": 6,
+            "status": 200,
+            "mimeType": "application/json"
+          },
+          {
+            "url": "/api/v3/brokerage/user_chart_config/BTC-USD",
+            "method": "GET",
+            "count": 5,
+            "status": 200,
+            "mimeType": "application/json"
+          },
+          {
+            "url": "/api/v3/brokerage/stream/balance_summary",
+            "method": "GET",
+            "count": 1,
+            "status": 200,
+            "mimeType": "text/event-stream"
+          },
+          {
+            "url": "/api/v3/brokerage/stream/products/BTC-USD/stats",
+            "method": "GET",
+            "count": 1,
+            "status": 200,
+            "mimeType": "text/event-stream"
+          },
+          {
+            "url": "/api/v3/brokerage/products/BTC-USD/trades",
+            "method": "GET",
+            "count": 1,
+            "status": 200,
+            "mimeType": "text/event-stream"
+          },
+          {
+            "url": "/api/v3/brokerage/products/BTC-USD/stats",
+            "method": "GET",
+            "count": 1,
+            "status": 200,
+            "mimeType": "application/json"
+          }
+        ]
+      }
+    ],
+    "webTransportTargets": []
+  },
+  "targetsBefore": [
+    {
+      "id": "3C725666EBA9B615265500D1EFA336BA",
+      "type": "page",
+      "title": "Portfolio · Coinbase",
+      "url": "https://www.coinbase.com/advanced-portfolio"
+    },
+    {
+      "id": "9FC49E5BB74FA4BB91B811A230223EC1",
+      "type": "iframe",
+      "title": "https://pay.google.com/gp/p/ui/payframe?origin=https%3A%2F%2Fwww.coinbase.com&amp;mid=",
+      "url": "https://pay.google.com/gp/p/ui/payframe?origin=https%3A%2F%2Fwww.coinbase.com&mid="
+    },
+    {
+      "id": "D332AF9C409362EA879C91C2C078884F",
+      "type": "shared_worker",
+      "title": "",
+      "url": "blob:https://www.coinbase.com/dad33f16-38f5-413d-901d-34b6e6e556e1"
+    },
+    {
+      "id": "BEEA7213271B2958290D4E034FECA338",
+      "type": "service_worker",
+      "title": "Service Worker https://www.coinbase.com/sw.js?d=2026-06-1",
+      "url": "https://www.coinbase.com/sw.js?d=2026-06-1"
+    }
+  ],
+  "targetGetTargetsBefore": [
+    {
+      "id": "D332AF9C409362EA879C91C2C078884F",
+      "type": "shared_worker",
+      "title": "",
+      "url": "blob:https://www.coinbase.com/dad33f16-38f5-413d-901d-34b6e6e556e1"
+    },
+    {
+      "id": "BEEA7213271B2958290D4E034FECA338",
+      "type": "service_worker",
+      "title": "Service Worker https://www.coinbase.com/sw.js?d=2026-06-1",
+      "url": "https://www.coinbase.com/sw.js?d=2026-06-1"
+    },
+    {
+      "id": "3C725666EBA9B615265500D1EFA336BA",
+      "type": "page",
+      "title": "Portfolio · Coinbase",
+      "url": "https://www.coinbase.com/advanced-portfolio"
+    },
+    {
+      "id": "9FC49E5BB74FA4BB91B811A230223EC1",
+      "type": "iframe",
+      "title": "https://pay.google.com/gp/p/ui/payframe?origin=https%3A%2F%2Fwww.coinbase.com&mid=",
+      "url": "https://pay.google.com/gp/p/ui/payframe?origin=https%3A%2F%2Fwww.coinbase.com&mid="
+    }
+  ],
+  "targetsAfter": [
+    {
+      "id": "3C725666EBA9B615265500D1EFA336BA",
+      "type": "page",
+      "title": "Portfolio · Coinbase",
+      "url": "https://www.coinbase.com/advanced-portfolio"
+    },
+    {
+      "id": "818DC204FE666F0B0A0E6C4647492144",
+      "type": "iframe",
+      "title": "https://pay.google.com/gp/p/ui/payframe?origin=https%3A%2F%2Fwww.coinbase.com&amp;mid=",
+      "url": "https://pay.google.com/gp/p/ui/payframe?origin=https%3A%2F%2Fwww.coinbase.com&mid="
+    },
+    {
+      "id": "7614D88189557A1793C93891D3E361D7",
+      "type": "shared_worker",
+      "title": "",
+      "url": "blob:https://www.coinbase.com/ad999bad-9186-46fd-91b0-84bcd9808c37"
+    },
+    {
+      "id": "BEEA7213271B2958290D4E034FECA338",
+      "type": "service_worker",
+      "title": "Service Worker https://www.coinbase.com/sw.js?d=2026-06-1",
+      "url": "https://www.coinbase.com/sw.js?d=2026-06-1"
+    }
+  ],
+  "targetGetTargetsAfter": [
+    {
+      "id": "7614D88189557A1793C93891D3E361D7",
+      "type": "shared_worker",
+      "title": "",
+      "url": "blob:https://www.coinbase.com/ad999bad-9186-46fd-91b0-84bcd9808c37"
+    },
+    {
+      "id": "BEEA7213271B2958290D4E034FECA338",
+      "type": "service_worker",
+      "title": "Service Worker https://www.coinbase.com/sw.js?d=2026-06-1",
+      "url": "https://www.coinbase.com/sw.js?d=2026-06-1"
+    },
+    {
+      "id": "3C725666EBA9B615265500D1EFA336BA",
+      "type": "page",
+      "title": "Portfolio · Coinbase",
+      "url": "https://www.coinbase.com/advanced-portfolio"
+    },
+    {
+      "id": "818DC204FE666F0B0A0E6C4647492144",
+      "type": "iframe",
+      "title": "https://pay.google.com/gp/p/ui/payframe?origin=https%3A%2F%2Fwww.coinbase.com&mid=",
+      "url": "https://pay.google.com/gp/p/ui/payframe?origin=https%3A%2F%2Fwww.coinbase.com&mid="
+    }
+  ],
+  "targets": [
+    {
+      "label": "primary-page-before-navigation",
+      "target": {
+        "id": "3C725666EBA9B615265500D1EFA336BA",
+        "type": "page",
+        "title": "Portfolio · Coinbase",
+        "url": "https://www.coinbase.com/advanced-portfolio"
+      },
+      "webSockets": {},
+      "eventSourceMessages": [],
+      "rest": {
+        "/api/v3/brokerage/products": {
+          "method": "GET",
+          "count": 6,
+          "sampleQuery": "?product_type=SPOT&product_venue=CBE&get_tradability_status=true",
+          "type": "Fetch",
+          "status": 200,
+          "mimeType": "application/json"
+        },
+        "/api/v3/brokerage/user_chart_config/BTC-USD": {
+          "method": "GET",
+          "count": 5,
+          "sampleQuery": null,
+          "type": "Fetch",
+          "status": 200,
+          "mimeType": "application/json"
+        },
+        "/api/v3/brokerage/stream/balance_summary": {
+          "method": "GET",
+          "count": 1,
+          "sampleQuery": null,
+          "type": "Fetch",
+          "status": 200,
+          "mimeType": "text/event-stream"
+        },
+        "/api/v3/brokerage/stream/products/BTC-USD/stats": {
+          "method": "GET",
+          "count": 1,
+          "sampleQuery": "?update_interval=TWO_HUNDRED_FIFTY_MS_STATS",
+          "type": "Fetch",
+          "status": 200,
+          "mimeType": "text/event-stream"
+        },
+        "/api/v3/brokerage/products/BTC-USD/trades": {
+          "method": "GET",
+          "count": 1,
+          "sampleQuery": "?limit=100&update_interval=TWO_HUNDRED_FIFTY_MS_MARKET_TRADES",
+          "type": "Fetch",
+          "status": 200,
+          "mimeType": "text/event-stream"
+        },
+        "/api/v3/brokerage/products/BTC-USD/stats": {
+          "method": "GET",
+          "count": 1,
+          "sampleQuery": null,
+          "type": "Fetch",
+          "status": 200,
+          "mimeType": "application/json"
+        }
+      },
+      "webTransport": [],
+      "errors": []
+    },
+    {
+      "label": "before-trade-nav-shared_worker",
+      "target": {
+        "id": "D332AF9C409362EA879C91C2C078884F",
+        "type": "shared_worker",
+        "title": "",
+        "url": "blob:https://www.coinbase.com/dad33f16-38f5-413d-901d-34b6e6e556e1"
+      },
+      "webSockets": {},
+      "eventSourceMessages": [],
+      "rest": {},
+      "webTransport": [],
+      "errors": []
+    },
+    {
+      "label": "before-trade-nav-service_worker",
+      "target": {
+        "id": "BEEA7213271B2958290D4E034FECA338",
+        "type": "service_worker",
+        "title": "Service Worker https://www.coinbase.com/sw.js?d=2026-06-1",
+        "url": "https://www.coinbase.com/sw.js?d=2026-06-1"
+      },
+      "webSockets": {},
+      "eventSourceMessages": [],
+      "rest": {},
+      "webTransport": [],
+      "errors": []
+    },
+    {
+      "label": "after-trade-nav-shared_worker",
+      "target": {
+        "id": "674558B17451AB5ACE8E7F477FD0D434",
+        "type": "shared_worker",
+        "title": "",
+        "url": "blob:https://www.coinbase.com/b66feb26-1bb0-4e50-8d12-8c04d8990d92"
+      },
+      "webSockets": {},
+      "eventSourceMessages": [],
+      "rest": {},
+      "webTransport": [],
+      "errors": []
+    },
+    {
+      "label": "after-portfolio-nav-shared_worker",
+      "target": {
+        "id": "7614D88189557A1793C93891D3E361D7",
+        "type": "shared_worker",
+        "title": "",
+        "url": "blob:https://www.coinbase.com/ad999bad-9186-46fd-91b0-84bcd9808c37"
+      },
+      "webSockets": {},
+      "eventSourceMessages": [],
+      "rest": {},
+      "webTransport": [],
+      "errors": []
+    }
+  ]
+}

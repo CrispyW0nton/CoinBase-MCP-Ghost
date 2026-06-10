@@ -21,7 +21,7 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ChromeSession, listTabs } from "./chrome.js";
+import { ChromeSession, fetchVersion, listTabs } from "./chrome.js";
 import { loadConfig, liveModeArmed, recordLiveConfirmation, getLiveConfirmation } from "./config.js";
 import { RingBuffer, JsonlJournal } from "./journal.js";
 import {
@@ -30,6 +30,7 @@ import {
 } from "./schema.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
+const SOURCES = Object.freeze({ WS: "ws", SSE: "sse", POLL: "poll", DOM: "dom" });
 
 const ADVANCED_VIEW_RE = /https:\/\/www\.coinbase\.com\/advanced-(trade|portfolio)(?:\/|$|\?)/i;
 
@@ -224,7 +225,17 @@ function depth(side, levels = 10) {
   return entries.slice(0, levels).reduce((sum, level) => sum.plus(level.sz), new Decimal(0));
 }
 
-function maybeEmitImbalanceSignal({ ts, symbol, seq }) {
+function confidenceFor({ source, hasSequence }) {
+  return source === SOURCES.WS && hasSequence === true ? "high" : "low";
+}
+
+function degradedReasonFor({ source, hasSequence }) {
+  if (source !== SOURCES.WS) return `${source} source is not exchange-sequenced`;
+  if (hasSequence !== true) return "missing sequence_num";
+  return null;
+}
+
+function maybeEmitImbalanceSignal({ ts, symbol, seq, source = SOURCES.WS, ageMs = 0, hasSequence = seq !== null }) {
   const bidDepth = depth("bid");
   const askDepth = depth("ask");
   const total = bidDepth.plus(askDepth);
@@ -239,7 +250,13 @@ function maybeEmitImbalanceSignal({ ts, symbol, seq }) {
     bidDepth,
     askDepth,
     levels: 10,
-    seq: seq ?? null
+    seq: seq ?? null,
+    source,
+    ageMs,
+    hasSequence,
+    confidence: confidenceFor({ source, hasSequence }),
+    degraded: confidenceFor({ source, hasSequence }) !== "high",
+    degradedReason: degradedReasonFor({ source, hasSequence })
   };
   book.lastSignal = signal;
   ring.push(signal);
@@ -281,7 +298,9 @@ function applySimulatedFill(fill) {
   if (book.lastSignal) {
     paperLedger.outcomes.push({
       signal: book.lastSignal.value,
-      pnl: fill.side === "sell" ? px.minus(paperLedger.avgCostUsd) : new Decimal(0)
+      pnl: fill.side === "sell" ? px.minus(paperLedger.avgCostUsd) : new Decimal(0),
+      source: book.lastSignal.source,
+      degraded: book.lastSignal.degraded === true
     });
     paperLedger.outcomes = paperLedger.outcomes.slice(-500);
   }
@@ -306,8 +325,20 @@ function paperLedgerSnapshot() {
 
 function kellySizing() {
   const outcomes = paperLedger.outcomes.filter(item => item.signal && item.pnl);
+  const degradedInputs = outcomes.some(item => item.degraded === true || item.source !== SOURCES.WS);
+  if (degradedInputs) {
+    return {
+      observations: outcomes.length,
+      informationCoefficient: null,
+      meanEdge: null,
+      variance: null,
+      halfKellyFraction: "0",
+      refused: true,
+      reason: "Kelly sizing disabled for degraded/non-WS data; see Kahneman bias guardrails and Lopez de Prado on low-quality samples."
+    };
+  }
   if (outcomes.length < 2) {
-    return { observations: outcomes.length, informationCoefficient: null, meanEdge: null, variance: null, halfKellyFraction: "0" };
+    return { observations: outcomes.length, informationCoefficient: null, meanEdge: null, variance: null, halfKellyFraction: "0", refused: true, reason: "insufficient measured PAPER outcomes" };
   }
   const n = new Decimal(outcomes.length);
   const meanSignal = outcomes.reduce((sum, x) => sum.plus(x.signal), new Decimal(0)).div(n);
@@ -329,7 +360,9 @@ function kellySizing() {
     informationCoefficient: ic.toString(),
     meanEdge: meanPnl.toString(),
     variance: variance.toString(),
-    halfKellyFraction: halfKelly.toString()
+    halfKellyFraction: halfKelly.toString(),
+    refused: false,
+    reason: null
   };
 }
 
@@ -358,6 +391,15 @@ export function parseCoinbaseFrame(msg) {
   const channel = msg.channel ?? null;
   const sequenceNum = typeof msg.sequence_num === "number" ? msg.sequence_num : null;
   const symbol = SYMBOL();
+  const frameTs = Date.parse(msg.timestamp) || Date.now();
+  const frameAgeMs = Math.max(0, Date.now() - frameTs);
+  const frameProvenance = {
+    source: SOURCES.WS,
+    ageMs: frameAgeMs,
+    hasSequence: sequenceNum !== null,
+    confidence: sequenceNum !== null ? "high" : "medium",
+    degradedReason: sequenceNum === null ? "ws frame without sequence_num" : null
+  };
 
   if (!Array.isArray(msg.events)) return { events: out, sequenceNum, channel };
 
@@ -365,11 +407,12 @@ export function parseCoinbaseFrame(msg) {
     if (channel === "ticker" || channel === "ticker_batch") {
       for (const t of ev.tickers ?? []) {
         out.push(makeTick({
-          ts: Date.parse(msg.timestamp) || Date.now(),
+          ts: frameTs,
           symbol: t.product_id || symbol,
           bidPx: t.best_bid, bidSz: t.best_bid_quantity,
           askPx: t.best_ask, askSz: t.best_ask_quantity,
-          lastPx: t.price, lastSz: null
+          lastPx: t.price, lastSz: null,
+          ...frameProvenance
         }));
       }
     } else if (channel === "level2") {
@@ -381,7 +424,8 @@ export function parseCoinbaseFrame(msg) {
           ts: Date.parse(u.event_time) || Date.parse(msg.timestamp) || Date.now(),
           symbol: ev.product_id || symbol,
           side, px: u.price_level, sz: u.new_quantity,
-          isSnapshot, seq: sequenceNum
+          isSnapshot, seq: sequenceNum,
+          ...frameProvenance
         }));
       }
     } else if (channel === "market_trades") {
@@ -390,7 +434,8 @@ export function parseCoinbaseFrame(msg) {
           ts: Date.parse(tr.time) || Date.now(),
           symbol: tr.product_id || symbol,
           side: tr.side ? String(tr.side).toLowerCase() : null,
-          px: tr.price, sz: tr.size, tradeId: tr.trade_id
+          px: tr.price, sz: tr.size, tradeId: tr.trade_id,
+          ...frameProvenance
         }));
       }
     } else if (channel === "candles") {
@@ -399,7 +444,8 @@ export function parseCoinbaseFrame(msg) {
           ts: (Number(c.start) * 1000) || Date.now(),
           symbol: c.product_id || symbol,
           granularitySec: null,
-          o: c.open, h: c.high, l: c.low, c: c.close, v: c.volume
+          o: c.open, h: c.high, l: c.low, c: c.close, v: c.volume,
+          ...frameProvenance
         }));
       }
     }
@@ -445,7 +491,9 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
     try { msg = JSON.parse(payload); } catch { return; }
     const { events, sequenceNum, channel } = parseCoinbaseFrame(msg);
 
-    // Gap detection on the connection-level sequence_num.
+    // Gap detection is meaningful only on sequenced WS frames. Kleppmann's
+    // stream-processing reliability model does not apply to DOM snapshots,
+    // so DOM/poll/SSE without exchange sequence never emits a fake clean gap.
     if (sequenceNum !== null) {
       if (lastSeq !== null && sequenceNum > lastSeq + 1) {
         const gap = makeGap({ symbol: cfg.symbol, expectedSeq: lastSeq + 1, gotSeq: sequenceNum, channel });
@@ -467,7 +515,14 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
       } else if (evt.type === "l2update") {
         stats.l2++;
         decimalMapSet(book[evt.side], evt.px, evt.sz);
-        if (maybeEmitImbalanceSignal({ ts: evt.ts, symbol: evt.symbol, seq: evt.seq })) stats.signals++;
+        if (maybeEmitImbalanceSignal({
+          ts: evt.ts,
+          symbol: evt.symbol,
+          seq: evt.seq,
+          source: evt.source,
+          ageMs: evt.ageMs,
+          hasSequence: evt.hasSequence
+        })) stats.signals++;
       }
       else if (evt.type === "trade") stats.trades++;
       else if (evt.type === "candle") stats.candles++;
@@ -496,7 +551,14 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
       } else if (evt.type === "l2update") {
         stats.l2++;
         decimalMapSet(book[evt.side], evt.px, evt.sz);
-        if (maybeEmitImbalanceSignal({ ts: evt.ts, symbol: evt.symbol, seq: evt.seq })) stats.signals++;
+        if (maybeEmitImbalanceSignal({
+          ts: evt.ts,
+          symbol: evt.symbol,
+          seq: evt.seq,
+          source: evt.source,
+          ageMs: evt.ageMs,
+          hasSequence: evt.hasSequence
+        })) stats.signals++;
       }
     }
     stats.domFallback = fallback.events.length > 0;
@@ -520,6 +582,7 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
     sockets: [...stats.sockets],
     startView: view,
     activeView: viewFromUrl(activeUrl),
+    source: stats.frames > 0 ? SOURCES.WS : (stats.domFallback ? SOURCES.DOM : null),
     counts: { ticks: stats.ticks, l2: stats.l2, trades: stats.trades, candles: stats.candles, gaps: stats.gaps, signals: stats.signals, frames: stats.frames },
     domFallback: Boolean(stats.domFallback),
     journalPath: journal.path(),
@@ -546,19 +609,27 @@ async function collectDomOrderBook(session, symbol) {
     return { bids: pairs.slice(0, half), asks: pairs.slice(half), capturedAt: Date.now() };
   })()`);
   const ts = sample?.capturedAt || Date.now();
+  const provenance = {
+    source: SOURCES.DOM,
+    ageMs: 0,
+    hasSequence: false,
+    confidence: "low",
+    degradedReason: "rendered DOM snapshot; no exchange sequence_num"
+  };
   const events = [];
   for (const bid of sample?.bids?.slice(0, 25) || []) {
-    events.push(makeL2Update({ ts, symbol, side: "bid", px: bid.price, sz: bid.size, isSnapshot: true, seq: null }));
+    events.push(makeL2Update({ ts, symbol, side: "bid", px: bid.price, sz: bid.size, isSnapshot: true, seq: null, ...provenance }));
   }
   for (const ask of sample?.asks?.slice(0, 25) || []) {
-    events.push(makeL2Update({ ts, symbol, side: "ask", px: ask.price, sz: ask.size, isSnapshot: true, seq: null }));
+    events.push(makeL2Update({ ts, symbol, side: "ask", px: ask.price, sz: ask.size, isSnapshot: true, seq: null, ...provenance }));
   }
   if (sample?.bids?.[0] && sample?.asks?.[0]) {
     events.push(makeTick({
       ts, symbol,
       bidPx: sample.bids[0].price, bidSz: sample.bids[0].size,
       askPx: sample.asks[0].price, askSz: sample.asks[0].size,
-      lastPx: null, lastSz: null
+      lastPx: null, lastSz: null,
+      ...provenance
     }));
   }
   return { events };
@@ -574,6 +645,366 @@ export async function snapshotState({ n = 200 } = {}) {
     paperLedger: paperLedgerSnapshot(),
     recent: ring.recent(Number(n))
   };
+}
+
+async function listRawTargets(debugUrl = DEFAULT_DEBUG_URL) {
+  const response = await fetch(`${debugUrl.replace(/\/+$/, "")}/json/list`);
+  if (!response.ok) throw new Error(`Chrome debug endpoint returned ${response.status} ${response.statusText}`);
+  return response.json();
+}
+
+function isCoinbaseTarget(target) {
+  return /coinbase\.com/.test(String(target?.url || "")) || /coinbase/i.test(String(target?.title || ""));
+}
+
+function samplePayloadShape(payload) {
+  if (!payload) return null;
+  try {
+    const parsed = JSON.parse(payload);
+    return {
+      json: true,
+      keys: Object.keys(parsed).slice(0, 20),
+      channel: parsed.channel ?? null,
+      sequenceNumPresent: Object.prototype.hasOwnProperty.call(parsed, "sequence_num"),
+      eventsType: Array.isArray(parsed.events) ? "array" : typeof parsed.events
+    };
+  } catch {
+    return { json: false, bytes: payload.length, prefix: payload.slice(0, 80) };
+  }
+}
+
+function isTransportCandidateUrl(url = "") {
+  return /advanced-trade-ws|\/api\/v3\/brokerage\/|\/stream\/|event-stream|eventsource|webtransport/i.test(url);
+}
+
+async function attachTransportRecorder(target, label, bag) {
+  const session = await new ChromeSession({
+    id: target.id,
+    title: target.title,
+    url: target.url,
+    webSocketDebuggerUrl: target.webSocketDebuggerUrl
+  }).connect();
+  const record = {
+    label,
+    target: { id: target.id, type: target.type, title: target.title, url: target.url },
+    webSockets: {},
+    eventSourceMessages: [],
+    rest: {},
+    webTransport: [],
+    errors: []
+  };
+  bag.targets.push(record);
+  const wsIdToUrl = new Map();
+  const offs = [];
+  const add = (method, fn) => offs.push(session.on(method, fn));
+
+  await session.command("Network.enable").catch(error => record.errors.push({ where: "Network.enable", message: error.message }));
+
+  add("Network.webSocketCreated", p => {
+    wsIdToUrl.set(p.requestId, p.url);
+    record.webSockets[p.url] = record.webSockets[p.url] || {
+      url: p.url, created: 0, sent: [], received: [], errors: [], closed: 0, channels: {}
+    };
+    record.webSockets[p.url].created++;
+  });
+  add("Network.webSocketFrameSent", p => {
+    const url = wsIdToUrl.get(p.requestId) || "(unknown)";
+    const ws = record.webSockets[url] = record.webSockets[url] || { url, created: 0, sent: [], received: [], errors: [], closed: 0, channels: {} };
+    const payload = p?.response?.payloadData || "";
+    if (ws.sent.length < 20) ws.sent.push({ bytes: payload.length, shape: samplePayloadShape(payload) });
+  });
+  add("Network.webSocketFrameReceived", p => {
+    const url = wsIdToUrl.get(p.requestId) || "(unknown)";
+    const ws = record.webSockets[url] = record.webSockets[url] || { url, created: 0, sent: [], received: [], errors: [], closed: 0, channels: {} };
+    const payload = p?.response?.payloadData || "";
+    const shape = samplePayloadShape(payload);
+    if (ws.received.length < 20) ws.received.push({ bytes: payload.length, shape });
+    const channel = shape?.channel || "(unknown)";
+    ws.channels[channel] = (ws.channels[channel] || 0) + 1;
+  });
+  add("Network.webSocketFrameError", p => {
+    const url = wsIdToUrl.get(p.requestId) || "(unknown)";
+    const ws = record.webSockets[url] = record.webSockets[url] || { url, created: 0, sent: [], received: [], errors: [], closed: 0, channels: {} };
+    ws.errors.push({ errorMessage: p.errorMessage || null });
+  });
+  add("Network.webSocketClosed", p => {
+    const url = wsIdToUrl.get(p.requestId) || "(unknown)";
+    const ws = record.webSockets[url] = record.webSockets[url] || { url, created: 0, sent: [], received: [], errors: [], closed: 0, channels: {} };
+    ws.closed++;
+  });
+  add("Network.eventSourceMessageReceived", p => {
+    if (record.eventSourceMessages.length < 50) {
+      record.eventSourceMessages.push({
+        requestId: p.requestId,
+        eventName: p.eventName,
+        eventId: p.eventId,
+        dataShape: samplePayloadShape(p.data || "")
+      });
+    }
+  });
+  add("Network.requestWillBeSent", p => {
+    const u = p?.request?.url || "";
+    if (!isTransportCandidateUrl(u)) return;
+    let key = u;
+    try { key = new URL(u).pathname; } catch {}
+    record.rest[key] = record.rest[key] || { method: p?.request?.method || "GET", count: 0, sampleQuery: safeQuery(u), type: p?.type || null };
+    record.rest[key].count++;
+  });
+  add("Network.responseReceived", p => {
+    const u = p?.response?.url || "";
+    if (!isTransportCandidateUrl(u)) return;
+    let key = u;
+    try { key = new URL(u).pathname; } catch {}
+    record.rest[key] = record.rest[key] || { method: null, count: 0, sampleQuery: safeQuery(u), type: p?.type || null };
+    record.rest[key].status = p?.response?.status ?? null;
+    record.rest[key].mimeType = p?.response?.mimeType ?? null;
+  });
+  add("Network.webTransportCreated", p => record.webTransport.push({ url: p.url, timestamp: p.timestamp }));
+  add("Network.webTransportConnectionEstablished", p => record.webTransport.push({ requestId: p.transportId, established: true, timestamp: p.timestamp }));
+  add("Network.webTransportClosed", p => record.webTransport.push({ requestId: p.transportId, closed: true, timestamp: p.timestamp }));
+
+  return {
+    session,
+    record,
+    close: () => {
+      for (const off of offs) off?.();
+      session.close();
+    }
+  };
+}
+
+function safeQuery(urlValue) {
+  try {
+    const query = new URL(urlValue).search;
+    return query ? query.slice(0, 300) : null;
+  } catch {
+    return null;
+  }
+}
+
+function summarizeTransport(diag) {
+  const allTargets = diag.targets;
+  const wsTargets = [];
+  const sseTargets = [];
+  const pollTargets = [];
+  const webTransportTargets = [];
+  for (const target of allTargets) {
+    const wsEntries = Object.values(target.webSockets || {});
+    const frameCount = wsEntries.reduce((sum, ws) => sum + ws.received.length, 0);
+    if (wsEntries.length || frameCount) wsTargets.push({ label: target.label, target: target.target, frameCount, urls: wsEntries.map(ws => ws.url), channels: [...new Set(wsEntries.flatMap(ws => Object.keys(ws.channels || {})))] });
+    if (target.eventSourceMessages?.length) sseTargets.push({ label: target.label, target: target.target, count: target.eventSourceMessages.length });
+    const rest = Object.entries(target.rest || {}).filter(([url]) => isTransportCandidateUrl(url));
+    if (rest.length) pollTargets.push({ label: target.label, target: target.target, endpoints: rest.map(([url, meta]) => ({ url, method: meta.method, count: meta.count, status: meta.status, mimeType: meta.mimeType })) });
+    if (target.webTransport?.length) webTransportTargets.push({ label: target.label, target: target.target, events: target.webTransport });
+  }
+  const viableWs = wsTargets.some(item => item.frameCount > 0);
+  const conditional = wsTargets.some(item => item.urls.some(url => /advanced-trade-ws|wss:|coinbase/i.test(url)));
+  return {
+    wsTapViable: viableWs ? "yes" : (conditional ? "conditional" : "no"),
+    reason: viableWs
+      ? "CDP captured WebSocket frames after early attach/navigation."
+      : "No CDP WebSocket frames were captured after early attach/navigation; live data appears available through REST/polling and rendered DOM in this Chrome/Coinbase build.",
+    wsTargets,
+    sseTargets,
+    pollTargets,
+    webTransportTargets
+  };
+}
+
+export async function diagnoseTransport({ debugUrl, urlContains, durationMs = 45_000, outputRoot } = {}) {
+  const { session, tab, cfg, view } = await requireSignedInTab({ debugUrl, urlContains });
+  const dbg = debugUrl || cfg.debugUrl;
+  const originalUrl = tab.url;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const dir = outputRoot || path.join(process.cwd(), "recon", `${cfg.symbol.toLowerCase()}-${stamp}`);
+  await fs.mkdir(dir, { recursive: true });
+
+  const diag = {
+    capturedAt: new Date().toISOString(),
+    durationMs,
+    originalUrl,
+    startView: view,
+    testedFirst: "trade",
+    constraints: {
+      passiveOnly: true,
+      noClicks: true,
+      noCoinbaseApiClient: true,
+      noSecondAuthenticatedSocketFromMcp: true
+    },
+    browser: await fetchVersion(dbg).catch(error => ({ error: error.message })),
+    targetsBefore: (await listRawTargets(dbg)).filter(isCoinbaseTarget).map(t => ({ id: t.id, type: t.type, title: t.title, url: t.url })),
+    targets: []
+  };
+
+  const recorders = [];
+  try {
+    const browserSession = await new ChromeSession({
+      id: "browser",
+      title: "browser",
+      url: dbg,
+      webSocketDebuggerUrl: diag.browser.webSocketDebuggerUrl
+    }).connect().catch(() => null);
+    if (browserSession) {
+      diag.targetGetTargetsBefore = await browserSession.command("Target.getTargets")
+        .then(result => (result.targetInfos || []).filter(isCoinbaseTarget).map(t => ({ id: t.targetId, type: t.type, title: t.title, url: t.url })))
+        .catch(error => ({ error: error.message }));
+      browserSession.close();
+    }
+
+    recorders.push(await attachTransportRecorder({
+      id: tab.id,
+      type: "page",
+      title: tab.title,
+      url: tab.url,
+      webSocketDebuggerUrl: tab.webSocketDebuggerUrl
+    }, "primary-page-before-navigation", diag));
+
+    await session.command("Page.enable");
+    await session.command("Network.enable");
+    const attachWorkers = async label => {
+      const targets = (await listRawTargets(dbg)).filter(t => isCoinbaseTarget(t) && /worker/i.test(t.type || ""));
+      for (const target of targets) {
+        if (recorders.some(item => item.record.target.id === target.id)) continue;
+        recorders.push(await attachTransportRecorder(target, `${label}-${target.type}`, diag).catch(error => ({
+          record: { label, target: { id: target.id, type: target.type, title: target.title, url: target.url }, webSockets: {}, eventSourceMessages: [], rest: {}, webTransport: [], errors: [{ where: "attach", message: error.message }] },
+          close: () => {}
+        })));
+      }
+    };
+
+    await attachWorkers("before-trade-nav");
+    const tradeLoaded = session.waitForEvent("Page.loadEventFired", 30_000).catch(() => null);
+    await session.command("Page.navigate", { url: `https://www.coinbase.com/advanced-trade/spot/${encodeURIComponent(cfg.symbol)}` });
+    await tradeLoaded;
+    await waitForAdvancedViewForDiagnose(session, "trade");
+    await attachWorkers("after-trade-nav");
+    await new Promise(resolve => setTimeout(resolve, Math.floor(durationMs * 0.65)));
+
+    const portfolioLoaded = session.waitForEvent("Page.loadEventFired", 30_000).catch(() => null);
+    await session.command("Page.navigate", { url: "https://www.coinbase.com/advanced-portfolio" });
+    await portfolioLoaded;
+    await waitForAdvancedViewForDiagnose(session, "portfolio");
+    await attachWorkers("after-portfolio-nav");
+    await new Promise(resolve => setTimeout(resolve, Math.ceil(durationMs * 0.35)));
+
+    diag.targetsAfter = (await listRawTargets(dbg)).filter(isCoinbaseTarget).map(t => ({ id: t.id, type: t.type, title: t.title, url: t.url }));
+    const browserSessionAfter = await new ChromeSession({
+      id: "browser",
+      title: "browser",
+      url: dbg,
+      webSocketDebuggerUrl: diag.browser.webSocketDebuggerUrl
+    }).connect().catch(() => null);
+    if (browserSessionAfter) {
+      diag.targetGetTargetsAfter = await browserSessionAfter.command("Target.getTargets")
+        .then(result => (result.targetInfos || []).filter(isCoinbaseTarget).map(t => ({ id: t.targetId, type: t.type, title: t.title, url: t.url })))
+        .catch(error => ({ error: error.message }));
+      browserSessionAfter.close();
+    }
+    diag.summary = summarizeTransport(diag);
+  } finally {
+    for (const recorder of recorders) recorder.close?.();
+    if ((await safeLocation(session)) !== originalUrl) {
+      await session.command("Page.navigate", { url: originalUrl }).catch(() => {});
+    }
+    session.close();
+  }
+
+  const networkMap = {
+    capturedAt: diag.capturedAt,
+    diagnostic: true,
+    transportSummary: diag.summary,
+    targetsBefore: diag.targetsBefore,
+    targetGetTargetsBefore: diag.targetGetTargetsBefore || [],
+    targetsAfter: diag.targetsAfter || [],
+    targetGetTargetsAfter: diag.targetGetTargetsAfter || [],
+    targets: diag.targets
+  };
+  await fs.writeFile(path.join(dir, "network-map.json"), JSON.stringify(networkMap, null, 2), "utf8");
+  await fs.writeFile(path.join(dir, "transport-diagnostic.json"), JSON.stringify(diag, null, 2), "utf8");
+  await fs.writeFile(path.join(dir, "RECON_REPORT.md"), buildTransportDiagnosticReport({ cfg, diag }), "utf8");
+
+  return {
+    diagnosed: true,
+    outputDir: dir,
+    verdict: diag.summary.wsTapViable,
+    reason: diag.summary.reason,
+    testedFirst: "trade",
+    wsTargets: diag.summary.wsTargets,
+    sseTargets: diag.summary.sseTargets,
+    pollTargets: diag.summary.pollTargets,
+    webTransportTargets: diag.summary.webTransportTargets
+  };
+}
+
+async function waitForAdvancedViewForDiagnose(session, label) {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const ready = await session.evaluate(`(() => {
+      const text = document.body?.innerText || "";
+      return ${JSON.stringify(label)} === "trade"
+        ? /Order book|BID \\(USD\\)|Recent trades/.test(text)
+        : /Total balance|Cash|Crypto/.test(text);
+    })()`).catch(() => false);
+    if (ready) return true;
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  return false;
+}
+
+function buildTransportDiagnosticReport({ cfg, diag }) {
+  const summary = diag.summary;
+  const restLines = summary.pollTargets.flatMap(item => item.endpoints.map(ep =>
+    `- ${item.label} / ${item.target.type}: \`${ep.method || "?"} ${ep.url}\` x${ep.count}${ep.mimeType ? ` (${ep.mimeType})` : ""}`
+  ));
+  const wsLines = summary.wsTargets.flatMap(item => item.urls.map(url =>
+    `- ${item.label} / ${item.target.type}: \`${url}\` frames=${item.frameCount} channels=${item.channels.join(", ") || "none"}`
+  ));
+  return `# Coinbase Transport Diagnostic — ${cfg.symbol}
+
+_Captured: ${diag.capturedAt}_  
+_Test order: trade first, then portfolio._  
+_Mode: ${cfg.mode}; passive CDP observation only._
+
+## WS TAP VIABLE: ${String(summary.wsTapViable).toUpperCase()}
+
+${summary.reason}
+
+Reproduction steps:
+
+1. Attach to the existing Coinbase advanced page target over CDP.
+2. Enable \`Network\` listeners before navigation for WebSocket, EventSource, REST/poll, and WebTransport events.
+3. Navigate the same signed-in tab to \`/advanced-trade/spot/${cfg.symbol}\` and observe.
+4. Enumerate Coinbase worker/shared-worker/service-worker targets and attach passive Network listeners.
+5. Navigate the same tab to \`/advanced-portfolio\` and observe.
+
+No Buy/Sell/Preview/Place controls were clicked. No Coinbase API client, SDK,
+credentials, cookies, or independent Coinbase socket were used.
+
+## WebSocket observations
+
+${wsLines.length ? wsLines.join("\n") : "_No WebSocket frames or socket creation events were captured after early attach/navigation._"}
+
+## SSE / EventSource
+
+${summary.sseTargets.length ? summary.sseTargets.map(item => `- ${item.label} / ${item.target.type}: ${item.count} messages`).join("\n") : "_No EventSource messages captured._"}
+
+## REST / polling candidates
+
+${restLines.length ? restLines.join("\n") : "_No REST/poll candidates captured._"}
+
+## WebTransport / QUIC
+
+${summary.webTransportTargets.length ? JSON.stringify(summary.webTransportTargets, null, 2) : "_No WebTransport events captured._"}
+
+## Data-quality consequence
+
+Per Harris, rendered DOM depth is a lower-grade microstructure observation than
+the exchange's sequenced feed. Per Kleppmann, gap detection requires a reliable
+sequence. Per Lopez de Prado and Kahneman, downstream signals and Kelly sizing
+must not treat low-quality samples as clean evidence. Therefore DOM fallback
+events are labeled \`source:"dom"\`, \`hasSequence:false\`,
+\`confidence:"low"\`, and derived Kelly output refuses degraded inputs.
+`;
 }
 
 async function safeLocation(session) {
@@ -1162,7 +1593,12 @@ export async function placeOrder(args = {}) {
     side, orderType: type, clientOrderId,
     fillPx: fillPx.toString(), filledBase: filledBase.toString(),
     notionalUsd: notional.toString(), limitPrice: limitPrice ?? null,
-    timeInForce, mode: cfg.mode
+    timeInForce, mode: cfg.mode,
+    source: lastTick?.source ?? null,
+    hasSequence: lastTick?.hasSequence === true,
+    confidence: lastTick?.confidence ?? "low",
+    degraded: lastTick?.degraded !== false,
+    degradedReason: lastTick?.degradedReason ?? "fill priced from unverified market source"
   };
   ring.push(fill);
   journal.append(fill);

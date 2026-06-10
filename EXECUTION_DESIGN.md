@@ -43,6 +43,10 @@ All selectors below come from `recon/<symbol>-<ts>/dom-map.json`, chosen by the
 stability ranking (data-testid > role+name > class fragment > textContent).
 Each step would be preceded by a `coinbase_attach` `signedIn === true` check and
 a fresh `coinbase_portfolio_snapshot` + live quote from `coinbase_market_stream`.
+After Pass 3, that quote must also be checked for provenance:
+`source:"ws"` and `hasSequence:true` are required before any future LIVE design
+can treat gap detection or microstructure signals as reliable. DOM fallback is
+observation-only and degraded.
 
 > **Harris, _Trading and Exchanges_, Ch. 4 & Ch. 6.** Market orders pay the
 > spread for immediacy; limit orders provide liquidity and risk non-execution.
@@ -112,6 +116,13 @@ This is advisory only and never auto-acts. **Lopez de Prado, AFML**, motivates
 requiring measured PAPER outcomes before trusting the signal; **Kahneman**
 motivates shrinking action toward inaction when evidence is thin.
 
+Pass 3 added data provenance to every event and derived value. If the signal is
+fed by DOM fallback (`source:"dom"`, `hasSequence:false`), the PAPER ledger may
+record it for audit, but half-Kelly sizing refuses the sample. This follows
+Harris on market microstructure observation quality, Kleppmann on sequenced
+stream reliability, Lopez de Prado on low-quality samples, and Kahneman on
+operator overconfidence.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to
@@ -163,4 +174,6 @@ Operator actions:
 
 Pass 2 implemented `coinbase_confirm_live` as a stub, preview reconciliation as
 a pure diff, and the PAPER P&L ledger. Future LIVE work still requires a fresh
-review before connecting any DOM submission path.
+review before connecting any DOM submission path. Pass 3 did not add execution
+features; it established that the current Chrome/Coinbase build did not expose
+capturable sequenced WS frames over CDP, so DOM-sourced numbers remain degraded.
