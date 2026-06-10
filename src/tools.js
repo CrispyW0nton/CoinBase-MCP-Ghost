@@ -10,7 +10,8 @@ import {
   placeOrder as coinbasePlaceOrder,
   paperLedgerState as coinbasePaperLedgerState,
   confirmLive as coinbaseConfirmLive,
-  reconcilePreviewIntent as coinbaseReconcilePreviewIntent
+  reconcilePreviewIntent as coinbaseReconcilePreviewIntent,
+  diagnoseTransport as coinbaseDiagnoseTransport
 } from "./coinbase.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
@@ -201,6 +202,19 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_diagnose_transport",
+    description: "Passive transport diagnostic for Coinbase real-time data. Attaches before same-tab navigation, observes WS/SSE/poll/WebTransport on page and worker targets, writes a recon network-map + WS TAP VIABLE verdict. Never clicks or opens a Coinbase socket.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
+        urlContains: { anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], default: ["coinbase.com/advanced-trade", "coinbase.com/advanced-portfolio"] },
+        durationMs: { type: "number", default: 45000 },
+        outputRoot: { type: "string" }
+      }
+    }
+  },
+  {
     name: "coinbase_attach",
     description: "Attach (fail-closed) to an already-open, already-signed-in Coinbase Advanced Trade tab in the debug profile. Returns { attached, signedIn, tab, probeResults }. Never falls back to an unrelated tab.",
     inputSchema: {
@@ -335,6 +349,8 @@ export async function callTool(name, args) {
       return textResult(await chromeExtractMedia(args));
     case "coinbase_attach":
       return textResult(JSON.stringify(await coinbaseAttach(args), null, 2));
+    case "coinbase_diagnose_transport":
+      return textResult(JSON.stringify(await coinbaseDiagnoseTransport(args), null, 2));
     case "coinbase_recon":
       return textResult(JSON.stringify(await coinbaseRecon(args), null, 2));
     case "coinbase_market_stream":
