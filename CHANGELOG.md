@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.12.0 - Stage 1 recorder core contract
+
+Stage 1 now has a reusable recorder core for future live frame sources.
+
+- Added `recordStage1FrameSource`, an async-iterable recorder that feeds any
+  supplied frame source through the same Stage 1 audit/ingest path.
+- Refactored Stage 1 manifests to carry explicit evidence flags:
+  `offlineOnly`, `networkTouched`, `keyedClientImplemented`, and
+  `liveWsFlowObserved`. Defaults remain offline/no-network/no-keyed-client.
+- Added smoke coverage proving the recorder writes clean async frames through
+  strict ingest, and that a simulated live manifest contract is recognized by
+  readiness while still failing the full gate without approval and breadth.
+- No Coinbase connector, credentials, socket, orders, stops, or LIVE arming were
+  added.
+
 ## 0.11.0 - Stage 1 readiness gate reporter
 
 Stage 1 now has a single offline readiness command that reports whether the

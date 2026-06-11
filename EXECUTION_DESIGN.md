@@ -196,6 +196,12 @@ and Stage 1 manifests. Stage 2 cannot begin until this reporter passes: enough
 clean sequenced WS data must exist, and at least one completed manifest must
 prove live keyed WS flow rather than offline fixture ingest.
 
+`recordStage1FrameSource` is the reusable recorder core for the future approved
+client. It accepts an async iterable of Coinbase WS frame payloads and routes
+them through the same audit/ingest/manifest path. The default metadata is
+offline/no-network/no-keyed-client; a future connector may set live evidence
+flags only when it really used the human-approved keyed WS rail.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to

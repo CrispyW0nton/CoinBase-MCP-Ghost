@@ -70,3 +70,7 @@ keyed client until the approval phrase is present.
     WS-only/high-confidence journal rows, zero gap events, Stage-0 readiness on
     WS-quality data, and a completed live keyed WS manifest. Fixture-only
     ingests are useful tests but are not live-feed evidence.
+15. Future approved keyed WS code should feed frames into
+    `recordStage1FrameSource` so live capture uses the same audit, ingest,
+    manifest, and readiness path as fixtures. Never set live evidence flags
+    unless the frames came from the approved keyed Advanced Trade WS rail.

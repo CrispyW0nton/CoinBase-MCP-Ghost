@@ -52,6 +52,11 @@ gate reporter. They require approval, clean WS-only journal data, no gap events,
 Stage-0 readiness on WS-quality data, and a completed live keyed WS manifest.
 Offline fixture ingests remain test evidence only.
 
+`recordStage1FrameSource` is the reusable recorder core the future approved
+client should call. It accepts an async iterable of WS frame payloads and routes
+them through the same audit, strict journal ingest, manifest, and readiness
+contract used by fixtures.
+
 ## Proposed credential env names
 
 These names are placeholders for the next implementation pass and are not used
@@ -102,9 +107,12 @@ It does not approve:
 7. Use `coinbase_stage1_ingest_frames` or the same underlying ingest path to
    append only clean sequenced events to JSONL with a manifest.
 8. Pass `coinbase_stage1_readiness` before Stage 2 starts.
-9. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
+9. Route future live keyed frame payloads through `recordStage1FrameSource`;
+   set live manifest evidence flags only when the approved keyed WS rail was
+   actually used.
+10. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
    deflated Sharpe, and realistic costs before any execution research.
-10. Leave LIVE trading disconnected until later risk, kill-switch, and human
+11. Leave LIVE trading disconnected until later risk, kill-switch, and human
    approval gates are passed.
 
 ## Knowledge-base rationale

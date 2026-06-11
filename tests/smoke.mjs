@@ -41,6 +41,7 @@ import {
 } from "../src/stage1-approval.js";
 import { stage1FeedAudit } from "../src/stage1-feed-audit.js";
 import { stage1IngestFrames } from "../src/stage1-ingest.js";
+import { recordStage1FrameSource } from "../src/stage1-recorder.js";
 import { stage1Readiness } from "../src/stage1-readiness.js";
 
 let failures = 0;
@@ -524,6 +525,81 @@ async function offlineSuite() {
     assert.equal(result.liveEvidenceGate.pass, false);
     assert.match(result.liveEvidenceGate.reasons.join("; "), /no completed live keyed WS Stage 1 manifest observed/);
     assert.equal(result.fullStage1Gate.pass, false);
+  });
+
+  await check("Stage 1 recorder consumes async frames through the strict ingest path", async () => {
+    const now = new Date().toISOString();
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-recorder-"));
+    async function* frameSource() {
+      yield {
+        channel: "level2",
+        sequence_num: 60,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      };
+      yield {
+        channel: "ticker",
+        sequence_num: 61,
+        timestamp: now,
+        events: [{ tickers: [{ product_id: "BTC-USD", best_bid: "100", best_ask: "102", price: "101" }] }]
+      };
+    }
+    const result = await recordStage1FrameSource({
+      frameSource: frameSource(),
+      journalDir: path.join(baseDir, "journal"),
+      outputRoot: path.join(baseDir, "recordings")
+    });
+    assert.equal(result.ingested, true);
+    assert.equal(result.framesRead, 2);
+    assert.equal(result.appended.written, 3);
+    const manifest = JSON.parse(fs.readFileSync(result.manifestPath, "utf8"));
+    assert.equal(manifest.offlineOnly, true);
+    assert.equal(manifest.networkTouched, false);
+    assert.equal(manifest.liveWsFlowObserved, false);
+  });
+
+  await check("Stage 1 readiness recognizes simulated live manifest contract but still needs approval and breadth", async () => {
+    const now = new Date().toISOString();
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-contract-"));
+    async function* frameSource() {
+      yield {
+        channel: "level2",
+        sequence_num: 70,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      };
+      yield {
+        channel: "ticker",
+        sequence_num: 71,
+        timestamp: now,
+        events: [{ tickers: [{ product_id: "BTC-USD", best_bid: "100", best_ask: "102", price: "101" }] }]
+      };
+    }
+    const journalDir = path.join(baseDir, "journal");
+    const recordingsDir = path.join(baseDir, "recordings");
+    await recordStage1FrameSource({
+      frameSource: frameSource(),
+      journalDir,
+      outputRoot: recordingsDir,
+      manifestMeta: {
+        offlineOnly: false,
+        networkTouched: true,
+        keyedClientImplemented: true,
+        liveWsFlowObserved: true,
+        evidence: { testOnly: true, reason: "simulated manifest contract" }
+      }
+    });
+    const readiness = await stage1Readiness({ journalDir, recordingsDir, horizonObservations: 1 });
+    assert.equal(readiness.liveEvidenceGate.pass, true);
+    assert.equal(readiness.fullStage1Gate.pass, false);
+    assert.match(readiness.fullStage1Gate.reasons.join("; "), /credential approval missing/);
+    assert.match(readiness.fullStage1Gate.reasons.join("; "), /paired observations/);
   });
 }
 

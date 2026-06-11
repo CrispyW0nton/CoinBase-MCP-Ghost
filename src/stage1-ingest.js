@@ -17,7 +17,8 @@ export async function stage1IngestFrames(args = {}) {
     frameFile,
     journalDir = "journal",
     outputRoot = "recordings",
-    requireClean = true
+    requireClean = true,
+    manifestMeta = {}
   } = args;
   const startedAt = new Date().toISOString();
   const stamp = startedAt.replace(/[:.]/g, "-");
@@ -36,7 +37,8 @@ export async function stage1IngestFrames(args = {}) {
     outputDir,
     rawFrames,
     parsed,
-    audit
+    audit,
+    manifestMeta
   });
 
   if (requireClean !== false && !audit.wsQualityGate.pass) {
@@ -85,13 +87,14 @@ export async function stage1IngestFrames(args = {}) {
   };
 }
 
-function baseManifest({ symbol, startedAt, frameFile, journalDir, outputDir, rawFrames, parsed, audit }) {
+function baseManifest({ symbol, startedAt, frameFile, journalDir, outputDir, rawFrames, parsed, audit, manifestMeta = {} }) {
   return {
     stage: "Stage 1 - Real Sequenced Data Feed",
     recording: false,
-    offlineOnly: true,
-    networkTouched: false,
-    keyedClientImplemented: false,
+    offlineOnly: manifestMeta.offlineOnly ?? true,
+    networkTouched: manifestMeta.networkTouched === true,
+    keyedClientImplemented: manifestMeta.keyedClientImplemented === true,
+    liveWsFlowObserved: manifestMeta.liveWsFlowObserved === true,
     liveTradingEnabled: false,
     source: "ws",
     dataQuality: audit.wsQualityGate.pass ? "sequenced/high-confidence" : "failed ws-quality gate",
@@ -122,11 +125,12 @@ function baseManifest({ symbol, startedAt, frameFile, journalDir, outputDir, raw
     stage0Readiness: audit.stage0Readiness,
     replay: audit.replay,
     safety: {
-      noCredentials: true,
-      noNetwork: true,
+      noCredentials: manifestMeta.keyedClientImplemented === true ? false : true,
+      noNetwork: manifestMeta.networkTouched === true ? false : true,
       noOrders: true,
       noLiveArming: true
-    }
+    },
+    evidence: manifestMeta.evidence || null
   };
 }
 
