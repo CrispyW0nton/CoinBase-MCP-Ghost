@@ -183,6 +183,13 @@ stream-quality gate is not enough for research: the resulting data must still
 clear the Stage-0 paired-observation, effective-breadth, and out-of-sample
 quantity thresholds.
 
+`coinbase_stage1_ingest_frames` is the matching offline journal writer. It uses
+the same parser/audit path, refuses dirty or gapped windows by default, appends
+only strict-provenance events to JSONL, and writes a Stage 1 manifest. This is
+fixture/backfill infrastructure only. It does not prove the live keyed feed is
+working until the supplied frames are produced by the human-approved Advanced
+Trade WS client.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to

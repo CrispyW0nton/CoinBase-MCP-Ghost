@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.0 - Stage 1 offline WS journal ingest
+
+Stage 1 now has an offline ingest path that writes supplied clean WS frames into
+the same strict-provenance journal shape the future keyed client must produce.
+
+- Added `coinbase_stage1_ingest_frames` and `npm run stage1:ingest`.
+- The ingestor loads supplied Coinbase Advanced Trade WS frame payloads,
+  normalizes them through the shared Stage 1 parser, refuses dirty/gapped
+  windows by default, writes clean `source:"ws"` events to JSONL, and emits a
+  Stage 1 manifest under `recordings/`.
+- The ingestor opens no socket, uses no credentials, validates no credential
+  material, places no orders, and cannot arm LIVE.
+- Added smoke coverage proving clean WS frames write strict journal rows and
+  skipped sequences refuse without creating a journal.
+
 ## 0.9.0 - Stage 1 offline WS feed audit
 
 Stage 1 now has a non-credentialed feed-quality audit surface that the future

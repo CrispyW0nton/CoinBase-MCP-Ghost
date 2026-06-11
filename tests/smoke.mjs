@@ -40,6 +40,7 @@ import {
   STAGE1_CREDENTIAL_ENVS
 } from "../src/stage1-approval.js";
 import { stage1FeedAudit } from "../src/stage1-feed-audit.js";
+import { stage1IngestFrames } from "../src/stage1-ingest.js";
 
 let failures = 0;
 function check(name, fn) {
@@ -402,6 +403,79 @@ async function offlineSuite() {
     assert.equal(audit.gapEvents[0].expectedSeq, 21);
     assert.equal(audit.gapEvents[0].gotSeq, 22);
     assert.match(audit.stage0Readiness.reasons.join("; "), /sequence gaps 1 > 0/);
+  });
+
+  await check("Stage 1 ingest writes clean WS frames to strict journal", async () => {
+    const now = new Date().toISOString();
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-ingest-"));
+    const journalDir = path.join(baseDir, "journal");
+    const outputRoot = path.join(baseDir, "recordings");
+    const frames = [
+      {
+        channel: "level2",
+        sequence_num: 30,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      },
+      {
+        channel: "ticker",
+        sequence_num: 31,
+        timestamp: now,
+        events: [{ tickers: [{ product_id: "BTC-USD", best_bid: "100", best_ask: "102", price: "101" }] }]
+      }
+    ];
+    const result = await stage1IngestFrames({ frames, journalDir, outputRoot, horizonObservations: 1 });
+    assert.equal(result.ingested, true);
+    assert.equal(result.refused, false);
+    assert.equal(result.audit.wsQualityGate.pass, true);
+    assert.equal(result.appended.written, 3);
+    assert.equal(result.appended.rejected, 0);
+    const journalLines = fs.readFileSync(result.journalPath, "utf8").trim().split(/\r?\n/).map(JSON.parse);
+    assert.equal(journalLines.length, 3);
+    assert.ok(journalLines.every(line => line.source === "ws" && line.hasSequence === true && line.confidence === "high" && line.degraded === false));
+    const manifest = JSON.parse(fs.readFileSync(result.manifestPath, "utf8"));
+    assert.equal(manifest.status, "complete");
+    assert.equal(manifest.dataQuality, "sequenced/high-confidence");
+    assert.equal(manifest.safety.noCredentials, true);
+    assert.equal(manifest.networkTouched, false);
+  });
+
+  await check("Stage 1 ingest refuses gapped WS frames by default", async () => {
+    const now = new Date().toISOString();
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-refuse-"));
+    const frames = [
+      {
+        channel: "level2",
+        sequence_num: 40,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now }
+        ]}]
+      },
+      {
+        channel: "level2",
+        sequence_num: 42,
+        timestamp: now,
+        events: [{ type: "update", product_id: "BTC-USD", updates: [
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      }
+    ];
+    const result = await stage1IngestFrames({
+      frames,
+      journalDir: path.join(baseDir, "journal"),
+      outputRoot: path.join(baseDir, "recordings")
+    });
+    assert.equal(result.ingested, false);
+    assert.equal(result.refused, true);
+    assert.match(result.reason, /sequence gaps 1 > 0/);
+    const manifest = JSON.parse(fs.readFileSync(result.manifestPath, "utf8"));
+    assert.equal(manifest.status, "refused");
+    assert.equal(manifest.ingested ?? false, false);
+    assert.equal(fs.existsSync(path.join(baseDir, "journal")), false);
   });
 }
 

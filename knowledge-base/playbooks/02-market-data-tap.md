@@ -59,3 +59,9 @@ keyed client until the approval phrase is present.
     L2 depth before the WS-quality gate passes. Then require Stage-0 quantity
     and breadth thresholds on the normalized WS events before any Stage 2
     signal research can begin.
+13. `coinbase_stage1_ingest_frames` or
+    `npm run stage1:ingest -- --frames <jsonl>` — offline journal writer for
+    supplied frames that already pass the WS-quality gate. It refuses dirty or
+    gapped windows by default, writes strict-provenance JSONL rows, and emits a
+    manifest. Do not treat ingested fixtures as live Stage 1 evidence unless
+    the frames came from the approved keyed Advanced Trade WS client.

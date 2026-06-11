@@ -115,6 +115,7 @@ Leave this window open while you use the MCP.
 | `coinbase_data_audit` | **Offline only.** Writes a Stage 0 audit report covering readiness, legacy/unusable rows, recording manifests, and journal quarantine counts. |
 | `coinbase_stage1_credentials_status` | **Offline only.** Reports whether the explicit Stage 1 keyed-WS approval phrase is present and whether proposed credential env vars are set. Never prints secret values, opens sockets, or validates credentials. |
 | `coinbase_stage1_feed_audit` | **Offline only.** Audits supplied Coinbase Advanced Trade WS frame payloads for `sequence_num` gaps, `source:"ws"` provenance, normalized market-data counts, and Stage-0 readiness on WS-quality data. Opens no socket and uses no credentials. |
+| `coinbase_stage1_ingest_frames` | **Offline only.** Converts supplied clean WS frame payloads into strict-provenance JSONL journal rows plus a Stage 1 manifest. Refuses gapped/dirty windows by default. Opens no socket and uses no credentials. |
 | `coinbase_record` | Long OBSERVE recorder. Samples the live DOM order book/trades tape, writes fully-provenanced events, reconnects on transient tab/session failures, and writes `recordings/<symbol>-<UTC>/manifest.json`. No clicks, REST, SDK, sockets, or orders. |
 | `coinbase_recon` | One-shot deep recon → `recon/<symbol>-<ts>/` (`dom-map.json`, `network-map.json`, `behavioral.json`, `screenshots/`, `RECON_REPORT.md`). Never submits an order. |
 | `coinbase_market_stream` | Prefers sequenced WS frames when available. If unavailable, uses loud DOM fallback only, with degraded provenance and no sequence-gap claims. |
@@ -157,6 +158,7 @@ Stage 1 credential approval is separate from LIVE execution. To inspect it:
 ```powershell
 npm run stage1:approval
 npm run stage1:feed-audit -- --frames path\to\ws-frames.jsonl
+npm run stage1:ingest -- --frames path\to\ws-frames.jsonl
 ```
 
 The required approval phrase is
@@ -170,6 +172,11 @@ captured frame payloads before any credentialed connector exists, and it keeps
 two gates separate: WS stream quality must be gap-clean and 100% provenanced,
 then the resulting journal still needs enough paired observations and effective
 breadth to reach Stage-0 readiness.
+
+`stage1:ingest` writes the same supplied frame payloads into the append-only
+journal only after the WS-quality gate passes. It is useful for fixtures,
+backfills, and acceptance tests, but it is not evidence that live Coinbase WS
+data is flowing until those frames come from the approved keyed client.
 
 ---
 
@@ -272,6 +279,7 @@ npm run audit -- --symbol BTC-USD --horizonObservations 1
 npm run backtest -- --symbol BTC-USD --horizonObservations 1
 npm run stage1:approval
 npm run stage1:feed-audit
+npm run stage1:ingest
 ```
 
 For an explicit live diagnostic smoke, opt in with `CMCP_LIVE_SMOKE=1`. That

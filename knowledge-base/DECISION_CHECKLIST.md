@@ -44,6 +44,10 @@ If any answer is "no" or "unknown", **stop and default to inaction**.
       `coinbase_stage1_feed_audit` pass with zero parse errors, zero
       unsequenced frames, zero gaps, 100% clean WS provenance, and Stage-0
       readiness on WS-quality data?
+- [ ] If Stage 1 frames were written to the journal, does the
+      `coinbase_stage1_ingest_frames` manifest show `status:"complete"`,
+      zero journal rejects, and an approved live-frame source before treating
+      it as real Stage 1 evidence?
 - [ ] For any non-BTC/ETH asset: did due diligence pass (tokenomics, audits,
       regulatory standing)? Default = trade only the most liquid majors.
 

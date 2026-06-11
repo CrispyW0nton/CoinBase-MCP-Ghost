@@ -41,6 +41,12 @@ The repository also includes `npm run stage1:feed-audit` and the MCP tool
 supplied WS frame payloads offline so the future keyed feed has a concrete
 acceptance contract before credentialed code exists.
 
+`npm run stage1:ingest` and `coinbase_stage1_ingest_frames` add the matching
+offline journal writer. They refuse dirty/gapped supplied frames by default and
+write strict `source:"ws"` journal rows plus a manifest only after the
+WS-quality gate passes. They still do not prove live WS flow until the frames
+come from the approved keyed client.
+
 ## Proposed credential env names
 
 These names are placeholders for the next implementation pass and are not used
@@ -88,9 +94,11 @@ It does not approve:
    window is gap-clean.
 6. Pass `coinbase_stage1_feed_audit`: zero parse errors, zero unsequenced
    frames, zero gaps, 100% clean WS provenance, and real L2 depth updates.
-7. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
+7. Use `coinbase_stage1_ingest_frames` or the same underlying ingest path to
+   append only clean sequenced events to JSONL with a manifest.
+8. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
    deflated Sharpe, and realistic costs before any execution research.
-8. Leave LIVE trading disconnected until later risk, kill-switch, and human
+9. Leave LIVE trading disconnected until later risk, kill-switch, and human
    approval gates are passed.
 
 ## Knowledge-base rationale

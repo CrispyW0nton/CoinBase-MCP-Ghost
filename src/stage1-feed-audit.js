@@ -21,7 +21,48 @@ export async function stage1FeedAudit(args = {}) {
     outputDir = "research",
     writeReport = false
   } = args;
-  const rawFrames = Array.isArray(frames) ? frames : await loadFrameFile(frameFile);
+  const rawFrames = Array.isArray(frames) ? frames : await loadStage1FrameFile(frameFile);
+  const parsed = parseStage1Frames({ rawFrames, symbol });
+  const replay = replayEvents(parsed.events.filter(evt => evt.type !== "gap"), args);
+  const stage0Readiness = stage0ReadinessFromReplay({ replay, stats: parsed.stats, provenance: parsed.provenance });
+  const wsQualityGate = wsQualityVerdict({ stats: parsed.stats, provenance: parsed.provenance, counts: parsed.counts });
+  const pctClean = parsed.provenance.totalEvents
+    ? Number((parsed.provenance.cleanEvents / parsed.provenance.totalEvents * 100).toFixed(6))
+    : 0;
+  const result = {
+    generatedAt: new Date().toISOString(),
+    stage: "Stage 1 - Real Sequenced Data Feed",
+    offlineOnly: true,
+    networkTouched: false,
+    keyedClientImplemented: false,
+    liveTradingEnabled: false,
+    symbol,
+    frameFile: frameFile || null,
+    frames: parsed.stats,
+    counts: parsed.counts,
+    provenance: {
+      ...parsed.provenance,
+      pctClean
+    },
+    gapEvents: parsed.gapEvents,
+    wsQualityGate,
+    stage0Readiness,
+    replay: {
+      eventCount: replay.eventCount,
+      priceObservations: replay.priceObservations,
+      signalObservations: replay.signalObservations,
+      pairedObservations: replay.pairedObservations,
+      effectiveBreadth: replay.metrics.all.breadth ?? 0,
+      testObservations: replay.metrics.test.observations
+    }
+  };
+  if (writeReport === true) {
+    result.reportPath = await writeStage1FeedAuditReport(result, { outputDir });
+  }
+  return result;
+}
+
+export function parseStage1Frames({ rawFrames = [], symbol = DEFAULT_SYMBOL } = {}) {
   const stats = {
     total: rawFrames.length,
     parsed: 0,
@@ -85,45 +126,17 @@ export async function stage1FeedAudit(args = {}) {
     }
   }
 
-  const replay = replayEvents(events.filter(evt => evt.type !== "gap"), args);
-  const stage0Readiness = stage0ReadinessFromReplay({ replay, stats, provenance });
-  const wsQualityGate = wsQualityVerdict({ stats, provenance, counts });
-  const result = {
-    generatedAt: new Date().toISOString(),
-    stage: "Stage 1 - Real Sequenced Data Feed",
-    offlineOnly: true,
-    networkTouched: false,
-    keyedClientImplemented: false,
-    liveTradingEnabled: false,
-    symbol,
-    frameFile: frameFile || null,
-    frames: stats,
-    counts,
-    provenance: {
-      ...provenance,
-      pctClean: provenance.totalEvents
-        ? Number((provenance.cleanEvents / provenance.totalEvents * 100).toFixed(6))
-        : 0
-    },
+  return {
+    events,
+    serializedEvents: events.map(serializeEvent),
     gapEvents,
-    wsQualityGate,
-    stage0Readiness,
-    replay: {
-      eventCount: replay.eventCount,
-      priceObservations: replay.priceObservations,
-      signalObservations: replay.signalObservations,
-      pairedObservations: replay.pairedObservations,
-      effectiveBreadth: replay.metrics.all.breadth ?? 0,
-      testObservations: replay.metrics.test.observations
-    }
+    stats,
+    counts,
+    provenance
   };
-  if (writeReport === true) {
-    result.reportPath = await writeStage1FeedAuditReport(result, { outputDir });
-  }
-  return result;
 }
 
-async function loadFrameFile(frameFile) {
+export async function loadStage1FrameFile(frameFile) {
   if (!frameFile) return [];
   const text = await fs.readFile(path.resolve(process.cwd(), frameFile), "utf8");
   return text.split(/\r?\n/).filter(Boolean);
