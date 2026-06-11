@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.30.0 - Stage 1 preflight evidence binding
+
+Stage 1 readiness now binds future live manifest evidence to the recorded
+preflight subscription contract.
+
+- `coinbase_stage1_readiness` rejects live-flagged manifests whose preflight
+  product list does not include the manifest symbol.
+- `coinbase_stage1_readiness` requires the preflight subscription plan to
+  include heartbeats and `level2` before live manifest evidence can pass.
+- Added smoke coverage for a live-flagged BTC-USD manifest with an ETH-USD
+  ticker-only preflight snapshot.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.29.0 - Stage 1 readiness archive integrity gate
 
 Stage 1 readiness now consumes the same raw-frame archive re-derivation used by

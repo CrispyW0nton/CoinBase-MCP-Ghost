@@ -394,7 +394,7 @@ export const tools = [
   },
   {
     name: "coinbase_stage1_readiness",
-    description: "OFFLINE ONLY. Report the full Stage 1 gate over journal data and manifests: credential approval, WS-only/high-confidence/gap-free data, Stage-0 readiness on WS-quality data, and live keyed WS manifest evidence. Opens no socket and places no orders.",
+    description: "OFFLINE ONLY. Report the full Stage 1 gate over journal data and manifests: credential approval, WS-only/high-confidence/gap-free data, Stage-0 readiness on WS-quality data, and live keyed WS manifest evidence with matching preflight product/level2 subscription. Opens no socket and places no orders.",
     inputSchema: {
       type: "object",
       properties: {

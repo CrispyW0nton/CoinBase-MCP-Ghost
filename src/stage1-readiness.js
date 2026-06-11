@@ -104,6 +104,7 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
     manifests.push({
       file: path.relative(process.cwd(), file),
       status: manifest.status || null,
+      symbol: manifest.symbol || null,
       source: manifest.source || null,
       dataQuality: manifest.dataQuality || null,
       offlineOnly: manifest.offlineOnly === true,
@@ -240,6 +241,17 @@ function validateStage1LiveManifestEvidence(manifest) {
     if (preflight.keyedClientImplemented !== false) reasons.push("manifest preflight keyedClientImplemented is not false");
     if (preflight.jwtGenerated !== false) reasons.push("manifest preflight jwtGenerated is not false");
     if (preflight.safety?.noCredentialValuesReturned !== true) reasons.push("manifest preflight does not assert secret-free output");
+    const productIds = preflight.subscriptionPlan?.productIds;
+    if (!Array.isArray(productIds) || !productIds.includes(manifest.symbol)) {
+      reasons.push(`manifest preflight productIds do not include ${manifest.symbol}`);
+    }
+    const channels = preflight.subscriptionPlan?.channels;
+    if (!Array.isArray(channels) || !channels.includes("heartbeats")) {
+      reasons.push("manifest preflight subscription plan does not include heartbeats");
+    }
+    if (!Array.isArray(channels) || !channels.includes("level2")) {
+      reasons.push("manifest preflight subscription plan does not include level2");
+    }
   }
 
   return {

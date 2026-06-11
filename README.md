@@ -236,7 +236,8 @@ must include concrete frame evidence: nonzero frames and journal writes, zero
 parse/unsequenced/duplicate/out-of-order/rejected rows, heartbeat evidence,
 sequence range, raw frame SHA-256 digest with matching archive, 100% clean
 provenance, archive-derived counts/evidence/provenance that match the manifest
-summary, and a secret-free passed `coinbase_stage1_feed_preflight` snapshot.
+summary, and a secret-free passed `coinbase_stage1_feed_preflight` snapshot
+whose subscription plan includes the manifest symbol, heartbeats, and `level2`.
 
 Future keyed feed code must call `requireStage1KeyedWsApproval` before it opens
 or authenticates a Coinbase WS connection. The guard throws

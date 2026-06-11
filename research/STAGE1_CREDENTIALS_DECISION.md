@@ -54,7 +54,8 @@ Offline fixture ingests remain test evidence only. Any future archive-backed
 live manifest must satisfy the same raw-frame archive re-derivation inside
 `coinbase_stage1_readiness` that `npm run stage1:manifest-audit` reports:
 frame counts, frame evidence, and provenance must reproduce from
-`raw-frames.jsonl`.
+`raw-frames.jsonl`. Its preflight evidence must also include a subscription
+plan for the manifest symbol with heartbeats and `level2`.
 
 `npm run stage1:subscription-plan` and `coinbase_stage1_subscription_plan` are
 the offline subscribe-message contract for the future approved client. They

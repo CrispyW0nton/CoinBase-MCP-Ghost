@@ -219,7 +219,8 @@ frames, zero journal rejects, heartbeat frame/counter evidence, a valid
 archive-derived counts/evidence/provenance that match the manifest summary,
 100% clean provenance, and secret-free evidence that
 `coinbase_stage1_feed_preflight` passed before the live connector opened the
-market-data socket.
+market-data socket. The preflight subscription plan must include the manifest
+symbol, heartbeats, and `level2`.
 
 `recordStage1FrameSource` is the reusable recorder core for the future approved
 client. It accepts an async iterable of Coinbase WS frame payloads and routes
