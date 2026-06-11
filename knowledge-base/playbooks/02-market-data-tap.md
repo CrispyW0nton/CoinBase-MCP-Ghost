@@ -61,13 +61,13 @@ keyed client until the approval phrase is present.
 13. `coinbase_stage1_feed_audit` or
     `npm run stage1:feed-audit -- --frames <jsonl>` — offline acceptance
     harness for supplied WS frame payloads. Require zero parse errors, zero
-    unsequenced frames, zero gaps, 100% clean `source:"ws"` provenance, and real
-    L2 depth before the WS-quality gate passes. Require heartbeat frames with
-    monotonic `heartbeat_counter` evidence for liveness. Then require Stage-0
-    quantity and breadth thresholds on the normalized WS events before any
-    Stage 2 signal research can begin. Level2 payloads may arrive as `level2`
-    or the official receive-channel example `l2_data`; both must normalize to
-    L2 depth.
+    unsequenced frames, zero gaps, zero duplicate/replayed sequence numbers,
+    100% clean `source:"ws"` provenance, and real L2 depth before the
+    WS-quality gate passes. Require heartbeat frames with monotonic
+    `heartbeat_counter` evidence for liveness. Then require Stage-0 quantity
+    and breadth thresholds on the normalized WS events before any Stage 2 signal
+    research can begin. Level2 payloads may arrive as `level2` or the official
+    receive-channel example `l2_data`; both must normalize to L2 depth.
 14. `coinbase_stage1_ingest_frames` or
     `npm run stage1:ingest -- --frames <jsonl>` — offline journal writer for
     supplied frames that already pass the WS-quality gate. It refuses dirty or

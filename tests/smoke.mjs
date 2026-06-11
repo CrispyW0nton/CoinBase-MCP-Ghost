@@ -560,6 +560,33 @@ async function offlineSuite() {
     assert.match(audit.stage0Readiness.reasons.join("; "), /sequence gaps 1 > 0/);
   });
 
+  await check("Stage 1 feed audit fails on duplicate or replayed sequence numbers", async () => {
+    const now = new Date().toISOString();
+    const frames = [
+      stage1Heartbeat(100, 1, now),
+      {
+        channel: "level2",
+        sequence_num: 101,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      },
+      {
+        channel: "ticker",
+        sequence_num: 101,
+        timestamp: now,
+        events: [{ tickers: [{ product_id: "BTC-USD", best_bid: "100", best_ask: "102", price: "101" }] }]
+      }
+    ];
+    const audit = await stage1FeedAudit({ frames, horizonObservations: 1 });
+    assert.equal(audit.wsQualityGate.pass, false);
+    assert.equal(audit.frames.duplicateOrReplay, 1);
+    assert.match(audit.wsQualityGate.reasons.join("; "), /duplicate\/replayed frames 1 > 0/);
+    assert.match(audit.stage0Readiness.reasons.join("; "), /duplicate\/replayed frames 1 > 0/);
+  });
+
   await check("Stage 1 feed audit fails without heartbeat liveness evidence", async () => {
     const now = new Date().toISOString();
     const frames = [

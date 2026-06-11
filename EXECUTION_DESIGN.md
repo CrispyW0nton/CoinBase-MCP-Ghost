@@ -181,11 +181,13 @@ any later execution discussion.
 future feed. It consumes supplied WS frame payloads offline and requires zero
 parse errors, zero unsequenced frames, zero sequence gaps, `source:"ws"` /
 `hasSequence:true` / `confidence:"high"` / `degraded:false` provenance, and
-real L2 depth updates before the stream-quality gate can pass. It also requires
-heartbeat frames with monotonic `heartbeat_counter` evidence so liveness is not
-inferred from market updates alone. Passing that stream-quality gate is not
-enough for research: the resulting data must still clear the Stage-0
-paired-observation, effective-breadth, and out-of-sample quantity thresholds.
+real L2 depth updates before the stream-quality gate can pass. Duplicate or
+replayed sequence numbers are refused rather than journaled as clean data. The
+audit also requires heartbeat frames with monotonic `heartbeat_counter` evidence
+so liveness is not inferred from market updates alone. Passing that
+stream-quality gate is not enough for research: the resulting data must still
+clear the Stage-0 paired-observation, effective-breadth, and out-of-sample
+quantity thresholds.
 
 `coinbase_stage1_ingest_frames` is the matching offline journal writer. It uses
 the same parser/audit path, refuses dirty or gapped windows by default, appends

@@ -199,6 +199,7 @@ function wsQualityVerdict({ stats, provenance, counts }) {
   if (stats.parseErrors > 0) reasons.push(`parse errors ${stats.parseErrors} > 0`);
   if (stats.unsequenced > 0) reasons.push(`unsequenced frames ${stats.unsequenced} > 0`);
   if (stats.gaps > 0) reasons.push(`sequence gaps ${stats.gaps} > 0`);
+  if (stats.duplicateOrReplay > 0) reasons.push(`duplicate/replayed frames ${stats.duplicateOrReplay} > 0`);
   if (stats.outOfOrder > 0) reasons.push(`out-of-order frames ${stats.outOfOrder} > 0`);
   if (stats.heartbeatFrames === 0) reasons.push("no heartbeat frames supplied for liveness evidence");
   if (stats.heartbeatCounterMissing > 0) reasons.push(`heartbeat frames missing counters ${stats.heartbeatCounterMissing} > 0`);
@@ -226,6 +227,7 @@ function stage0ReadinessFromReplay({ replay, stats, provenance }) {
   if (testObservations < MIN_TEST_OBSERVATIONS) reasons.push(`test observations ${testObservations} < ${MIN_TEST_OBSERVATIONS}`);
   if (stats.gaps > 0) reasons.push(`sequence gaps ${stats.gaps} > 0`);
   if (stats.unsequenced > 0) reasons.push(`unsequenced frames ${stats.unsequenced} > 0`);
+  if (stats.duplicateOrReplay > 0) reasons.push(`duplicate/replayed frames ${stats.duplicateOrReplay} > 0`);
   if (stats.heartbeatFrames === 0) reasons.push("no heartbeat frames supplied for liveness evidence");
   if (stats.heartbeatCounterMissing > 0) reasons.push(`heartbeat frames missing counters ${stats.heartbeatCounterMissing} > 0`);
   if (stats.heartbeatCounterGaps > 0) reasons.push(`heartbeat counter gaps ${stats.heartbeatCounterGaps} > 0`);
@@ -266,6 +268,7 @@ async function writeStage1FeedAuditReport(result, { outputDir }) {
     `- Parse errors: ${result.frames.parseErrors}`,
     `- Unsequenced frames: ${result.frames.unsequenced}`,
     `- Sequence gaps: ${result.frames.gaps}`,
+    `- Duplicate/replayed frames: ${result.frames.duplicateOrReplay}`,
     `- Heartbeat frames: ${result.frames.heartbeatFrames}`,
     `- Heartbeat counter gaps: ${result.frames.heartbeatCounterGaps}`,
     `- L2 updates: ${result.counts.l2}`,

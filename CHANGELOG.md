@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.19.0 - Stage 1 duplicate sequence refusal
+
+Stage 1 feed audit now rejects duplicate or replayed WS sequence numbers.
+
+- `coinbase_stage1_feed_audit` fails the WS-quality gate when
+  `duplicateOrReplay > 0`.
+- Stage-0 readiness on WS-quality data also reports duplicate/replayed frames
+  as a blocker.
+- Feed-audit reports include duplicate/replayed frame counts.
+- Added smoke coverage proving duplicate `sequence_num` frames cannot pass as
+  a clean Stage 1 window.
+- No credentialed client, JWT generation, credential read, socket, SDK call,
+  order placement, stop handling, or LIVE arming was added.
+
 ## 0.18.0 - Stage 1 heartbeat liveness audit
 
 Stage 1 feed audit now checks heartbeat evidence in supplied WS frame windows.

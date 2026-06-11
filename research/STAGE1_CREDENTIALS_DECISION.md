@@ -128,8 +128,9 @@ It does not approve:
 6. Detect `sequence_num` gaps and fail Stage 0 readiness unless the selected
    window is gap-clean.
 7. Pass `coinbase_stage1_feed_audit`: zero parse errors, zero unsequenced
-   frames, zero gaps, heartbeat/liveness evidence with monotonic counters,
-   100% clean WS provenance, and real L2 depth updates.
+   frames, zero gaps, zero duplicate/replayed sequence numbers,
+   heartbeat/liveness evidence with monotonic counters, 100% clean WS
+   provenance, and real L2 depth updates.
 8. Use `coinbase_stage1_ingest_frames` or the same underlying ingest path to
    append only clean sequenced events to JSONL with a manifest.
 9. Pass `coinbase_stage1_readiness` before Stage 2 starts.

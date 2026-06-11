@@ -51,7 +51,8 @@ socket, JWT generation, or Coinbase request was added by this review.
     Quantity `"0"` removes the price level.
 12. Coinbase documents `sequence_num` as increasing by exactly one for each new
     message. A jump means dropped messages; a lower value can be out of order
-    or ignorable depending on state.
+    or ignorable depending on state. Stage 1 offline audit treats duplicates,
+    replayed values, lower values, and jumps as not-clean feed evidence.
 13. The implementation must subscribe quickly after connection. The overview
     says the server disconnects connections that do not receive a subscription
     within 5 seconds.
