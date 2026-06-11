@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.21.0 - Stage 1 credential shape validator
+
+Stage 1 now has a post-approval, offline credential-shape validator for the
+future keyed data-feed pass.
+
+- Added `validateStage1CredentialMaterial` and the MCP tool
+  `coinbase_stage1_credentials_validate`.
+- The validator calls `requireStage1KeyedWsApproval` before reading proposed
+  credential env vars.
+- It checks only key-name and non-empty PEM private-key shape and returns
+  booleans/status only.
+- Added smoke coverage for pre-approval refusal, approved valid shapes, and
+  approved invalid shapes without leaking secret values.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.20.0 - Stage 1 frame evidence manifest
 
 Stage 1 audit and ingest manifests now carry compact frame-window evidence for

@@ -15,8 +15,9 @@ enough.
 
 Current stage: **Stage 1 - Real Sequenced Data Feed**. The Stage 1 gate is
 **closed** until a human explicitly approves building a keyed Coinbase Advanced
-Trade WebSocket data-feed client. No keyed client, credential validation,
-REST trading rail, or live order path is implemented.
+Trade WebSocket data-feed client. No keyed client, REST trading rail, or live
+order path is implemented. The only credential validation present is an
+offline, post-approval shape check that prints no values and opens no socket.
 
 > Forked from `chrome-course-mcp` (a Brightspace page collector). The JSON-RPC
 > stdio shell and the `ChromeSession` CDP client are reused as-is and extended.
@@ -114,6 +115,7 @@ Leave this window open while you use the MCP.
 | `coinbase_dataset_status` | **Offline only.** Reports journal inventory, paired observations, clean provenance percentage, effective breadth, and READY / NOT-READY for IC research. |
 | `coinbase_data_audit` | **Offline only.** Writes a Stage 0 audit report covering readiness, legacy/unusable rows, recording manifests, and journal quarantine counts. |
 | `coinbase_stage1_credentials_status` | **Offline only.** Reports whether the explicit Stage 1 keyed-WS approval phrase is present and whether proposed credential env vars are set. Never prints secret values, opens sockets, or validates credentials. |
+| `coinbase_stage1_credentials_validate` | **Offline only and approval required.** After the exact Stage 1 approval phrase is present, reads proposed credential env vars and validates only key-name/PEM shape. Prints no values, opens no socket, generates no JWT, and does not implement the keyed client. |
 | `coinbase_stage1_feed_audit` | **Offline only.** Audits supplied Coinbase Advanced Trade WS frame payloads for `sequence_num` gaps, duplicate/replay frames, heartbeat/liveness evidence, `source:"ws"` provenance, normalized market-data counts, and Stage-0 readiness on WS-quality data. Opens no socket and uses no credentials. |
 | `coinbase_stage1_ingest_frames` | **Offline only.** Converts supplied clean WS frame payloads into strict-provenance JSONL journal rows plus a Stage 1 manifest. Refuses gapped/dirty windows by default. Opens no socket and uses no credentials. |
 | `coinbase_stage1_readiness` | **Offline only.** Reports the full Stage 1 gate: approval status, WS-only journal quality, gap count, Stage-0 readiness, and whether a completed live keyed WS manifest exists. |
@@ -170,6 +172,12 @@ The required approval phrase is
 `research/STAGE1_CREDENTIALS_DECISION.md`. That phrase only approves building a
 sequenced market-data feed with `source:"ws"` provenance and gap detection; it
 does not approve orders, stops, REST trading, or LIVE arming.
+
+After that exact approval phrase is present, `coinbase_stage1_credentials_validate`
+can validate proposed `CMCP_COINBASE_ADVANCED_TRADE_KEY_NAME` and
+`CMCP_COINBASE_ADVANCED_TRADE_PRIVATE_KEY` shapes offline. It only reports
+booleans/status, never values, lengths, fingerprints, or PEM text; it does not
+generate JWTs or open a Coinbase connection.
 
 The current official Coinbase Advanced Trade WebSocket contract is captured in
 `research/STAGE1_OFFICIAL_DOCS_REVIEW.md`. That artifact is documentation only:
@@ -353,8 +361,8 @@ degraded when sourced from DOM fallback.
 - **No keyed WebSocket client yet.** Stage 1 may add a data-feed-only Advanced
   Trade WebSocket client after explicit approval; the current repository only
   includes the approval gate, offline audit/ingest/readiness path,
-  offline subscription-plan contract, fail-closed placeholder, and
-  official-docs review.
+  offline post-approval credential-shape validator, offline subscription-plan
+  contract, fail-closed placeholder, and official-docs review.
 
 Design references live in `knowledge-base/`: Harris for order-book
 microstructure, Grinold-Kahn and Chan for IC/Kelly sizing, Lopez de Prado for

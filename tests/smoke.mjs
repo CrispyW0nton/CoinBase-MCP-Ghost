@@ -40,6 +40,7 @@ import {
   STAGE1_APPROVAL_PHRASE,
   STAGE1_CREDENTIAL_ENVS
 } from "../src/stage1-approval.js";
+import { validateStage1CredentialMaterial } from "../src/stage1-credentials.js";
 import { stage1FeedAudit } from "../src/stage1-feed-audit.js";
 import { stage1IngestFrames } from "../src/stage1-ingest.js";
 import {
@@ -412,6 +413,63 @@ async function offlineSuite() {
     assert.ok(result.allowedScope.some(item => /WebSocket market-data/.test(item)));
     assert.ok(result.forbiddenScope.includes("order placement"));
     assert.ok(result.forbiddenScope.includes("LIVE arming"));
+  });
+
+  await check("Stage 1 credential validator refuses before approval without leaking secrets", () => {
+    const env = {
+      [STAGE1_APPROVAL_ENV]: "not-approved",
+      [STAGE1_CREDENTIAL_ENVS[0]]: "organizations/example-org/apiKeys/example-key",
+      [STAGE1_CREDENTIAL_ENVS[1]]: "-----BEGIN TEST PRIVATE KEY-----\nsecret-test-material\n-----END TEST PRIVATE KEY-----"
+    };
+    assert.throws(
+      () => validateStage1CredentialMaterial({ env }),
+      err => {
+        const serialized = JSON.stringify(err, Object.getOwnPropertyNames(err));
+        assert.equal(err.code, "STAGE1_KEYED_WS_APPROVAL_REQUIRED");
+        assert.equal(err.networkTouched, false);
+        assert.equal(err.liveTradingEnabled, false);
+        assert.doesNotMatch(serialized, /secret-test-material/);
+        assert.doesNotMatch(serialized, /BEGIN TEST PRIVATE KEY/);
+        return true;
+      }
+    );
+  });
+
+  await check("Stage 1 credential validator accepts approved shapes without exposing values", () => {
+    const env = {
+      [STAGE1_APPROVAL_ENV]: STAGE1_APPROVAL_PHRASE,
+      [STAGE1_CREDENTIAL_ENVS[0]]: "organizations/example-org/apiKeys/example-key",
+      [STAGE1_CREDENTIAL_ENVS[1]]: "-----BEGIN EC PRIVATE KEY-----\nsecret-test-material\n-----END EC PRIVATE KEY-----"
+    };
+    const result = validateStage1CredentialMaterial({ env });
+    const serialized = JSON.stringify(result);
+    assert.equal(result.pass, true);
+    assert.equal(result.credentialMaterialRead, true);
+    assert.equal(result.networkTouched, false);
+    assert.equal(result.keyedClientImplemented, false);
+    assert.equal(result.jwtGenerated, false);
+    assert.equal(result.checks.keyNameShape, "pass");
+    assert.equal(result.checks.privateKeyPemShape, "pass");
+    assert.doesNotMatch(serialized, /secret-test-material/);
+    assert.doesNotMatch(serialized, /example-key/);
+    assert.doesNotMatch(serialized, /BEGIN EC PRIVATE KEY/);
+  });
+
+  await check("Stage 1 credential validator reports invalid approved shapes without exposing values", () => {
+    const env = {
+      [STAGE1_APPROVAL_ENV]: STAGE1_APPROVAL_PHRASE,
+      [STAGE1_CREDENTIAL_ENVS[0]]: "bad-key",
+      [STAGE1_CREDENTIAL_ENVS[1]]: "secret-test-material"
+    };
+    const result = validateStage1CredentialMaterial({ env });
+    const serialized = JSON.stringify(result);
+    assert.equal(result.pass, false);
+    assert.equal(result.checks.keyNameShape, "fail");
+    assert.equal(result.checks.privateKeyPemShape, "fail");
+    assert.match(result.reasons.join("; "), /organizations\/<org_id>\/apiKeys\/<key_id>/);
+    assert.match(result.reasons.join("; "), /PEM private key/);
+    assert.doesNotMatch(serialized, /secret-test-material/);
+    assert.doesNotMatch(serialized, /bad-key/);
   });
 
   await check("Stage 1 keyed WS entrypoint refuses before approval", () => {

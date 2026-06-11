@@ -19,6 +19,7 @@ import { datasetStatus as coinbaseDatasetStatus } from "./replay.js";
 import { dataAudit as coinbaseDataAudit } from "./audit.js";
 import { stageAAnalysis as coinbaseStageA } from "./stage-a.js";
 import { stage1ApprovalStatus as coinbaseStage1ApprovalStatus } from "./stage1-approval.js";
+import { validateStage1CredentialMaterial as coinbaseStage1CredentialValidate } from "./stage1-credentials.js";
 import { stage1FeedAudit as coinbaseStage1FeedAudit } from "./stage1-feed-audit.js";
 import { stage1IngestFrames as coinbaseStage1IngestFrames } from "./stage1-ingest.js";
 import { stage1Readiness as coinbaseStage1Readiness } from "./stage1-readiness.js";
@@ -320,6 +321,14 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_stage1_credentials_validate",
+    description: "OFFLINE ONLY. After the explicit Stage 1 approval phrase is present, read proposed Advanced Trade credential env vars and validate key-name/PEM shape without printing values. Opens no socket, generates no JWT, places no orders, and does not implement the keyed WS client.",
+    inputSchema: {
+      type: "object",
+      properties: {}
+    }
+  },
+  {
     name: "coinbase_stage1_feed_audit",
     description: "OFFLINE ONLY. Audit supplied Coinbase Advanced Trade WS frame payloads for sequence_num gaps, duplicate/replay frames, heartbeat/liveness evidence, source:\"ws\" provenance, normalized depth/trade/tick counts, and Stage-0 readiness on WS-quality data. Opens no socket, uses no credentials, and places no orders.",
     inputSchema: {
@@ -554,6 +563,8 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbaseStageA(args), null, 2));
     case "coinbase_stage1_credentials_status":
       return textResult(JSON.stringify(coinbaseStage1ApprovalStatus(), null, 2));
+    case "coinbase_stage1_credentials_validate":
+      return textResult(JSON.stringify(coinbaseStage1CredentialValidate(), null, 2));
     case "coinbase_stage1_feed_audit":
       return textResult(JSON.stringify(await coinbaseStage1FeedAudit(args), null, 2));
     case "coinbase_stage1_ingest_frames":

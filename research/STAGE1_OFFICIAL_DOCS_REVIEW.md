@@ -69,6 +69,9 @@ socket, JWT generation, or Coinbase request was added by this review.
 ## Repo Mapping
 
 - `requireStage1KeyedWsApproval` must run before credential material is read.
+- `coinbase_stage1_credentials_validate` maps the documented key-name and
+  private-key shapes to an offline, post-approval check. It never returns
+  credential values and does not generate JWTs or open sockets.
 - `createStage1KeyedWsFrameSource` is the placeholder to replace after
   approval and docs re-check.
 - `coinbase_stage1_subscription_plan` plans and validates subscribe-message

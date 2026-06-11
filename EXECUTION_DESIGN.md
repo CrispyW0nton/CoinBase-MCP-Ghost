@@ -16,7 +16,8 @@
 > placement, stops, LIVE arming, or any bypass of this execution design.
 > The current official WebSocket contract review is recorded in
 > `research/STAGE1_OFFICIAL_DOCS_REVIEW.md`; it is documentation only and did
-> not add a client, JWT generation, credential reads, or sockets.
+> not add a client, JWT generation, or sockets. The only credential read path is
+> a post-approval, offline shape validator that prints no values.
 
 ---
 
@@ -216,6 +217,13 @@ channel per subscribe message, heartbeats for liveness, and market-data
 channels only. It rejects the user endpoint and user/futures channels, and it
 does not generate JWTs, read credentials, or open a socket.
 
+`coinbase_stage1_credentials_validate` is the post-approval credential-shape
+check for the future connector. It calls `requireStage1KeyedWsApproval` before
+reading any proposed credential env var, then checks only the official-style key
+name and non-empty PEM private-key shape. It returns booleans/status only:
+no credential values, lengths, fingerprints, JWTs, sockets, orders, or keyed
+client implementation.
+
 Any future keyed WS connector must call `requireStage1KeyedWsApproval` before
 reading credential material, opening a socket, or producing live evidence
 manifests. The guard is fail-closed and its approved scope is market data only;
@@ -287,7 +295,8 @@ Operator actions:
 - No keyed Advanced Trade WebSocket data-feed client until the Stage 1 approval
   phrase is explicitly provided. The current repository includes only offline
   approval/audit/ingest/readiness scaffolding, an offline subscription-plan
-  contract, a fail-closed future entrypoint, and an official-docs review.
+  contract, a post-approval credential-shape validator, a fail-closed future
+  entrypoint, and an official-docs review.
 
 Pass 2 implemented `coinbase_confirm_live` as a stub, preview reconciliation as
 a pure diff, and the PAPER P&L ledger. Future LIVE work still requires a fresh
