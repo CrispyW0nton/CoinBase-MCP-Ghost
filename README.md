@@ -180,6 +180,8 @@ captured frame payloads before any credentialed connector exists, and it keeps
 two gates separate: WS stream quality must be gap-clean and 100% provenanced,
 then the resulting journal still needs enough paired observations and effective
 breadth to reach Stage-0 readiness.
+The parser accepts both `channel:"level2"` and the official Level2 receive
+example's `channel:"l2_data"` shape.
 
 `stage1:ingest` writes the same supplied frame payloads into the append-only
 journal only after the WS-quality gate passes. It is useful for fixtures,

@@ -41,7 +41,9 @@ socket, JWT generation, or Coinbase request was added by this review.
    `organizations/{org_id}/apiKeys/{key_id}` plus an EC private key. The
    private key is multi-line material and must never be logged or committed.
 9. Level2 is the primary Stage 1 channel because Coinbase documents it as the
-   channel intended to keep an order book in sync.
+   channel intended to keep an order book in sync. Subscription examples use
+   `channel:"level2"`; the official receive example currently shows
+   `channel:"l2_data"`, so the offline parser accepts both for Level2 payloads.
 10. Level2 events include `snapshot` and `update` types with `product_id` and
     `updates`; each update carries `price_level`, `new_quantity`,
     `event_time`, and `side`.

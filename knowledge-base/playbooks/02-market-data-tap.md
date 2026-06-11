@@ -58,7 +58,8 @@ keyed client until the approval phrase is present.
     unsequenced frames, zero gaps, 100% clean `source:"ws"` provenance, and real
     L2 depth before the WS-quality gate passes. Then require Stage-0 quantity
     and breadth thresholds on the normalized WS events before any Stage 2
-    signal research can begin.
+    signal research can begin. Level2 payloads may arrive as `level2` or the
+    official receive-channel example `l2_data`; both must normalize to L2 depth.
 13. `coinbase_stage1_ingest_frames` or
     `npm run stage1:ingest -- --frames <jsonl>` — offline journal writer for
     supplied frames that already pass the WS-quality gate. It refuses dirty or

@@ -335,8 +335,9 @@ function kellySizing() {
 // We MIRROR frames the page already received. The Advanced Trade WS protocol
 // (wss://advanced-trade-ws.coinbase.com) sends messages of the shape:
 //   { channel, client_id, timestamp, sequence_num, events: [...] }
-// with channels: heartbeats, ticker, ticker_batch, level2, market_trades,
-// candles, status, user. We normalize the subset relevant to recon.
+// with channels: heartbeats, ticker, ticker_batch, level2/l2_data,
+// market_trades, candles, status, user. We normalize the subset relevant to
+// recon.
 //
 // Harris, "Trading and Exchanges" (Ch. 6 on order-driven markets, Ch. 7 on
 // the limit order book): the level2 channel is the live limit order book; the
@@ -378,7 +379,7 @@ export function parseCoinbaseFrame(msg) {
           ...frameProvenance
         }));
       }
-    } else if (channel === "level2") {
+    } else if (channel === "level2" || channel === "l2_data") {
       const isSnapshot = ev.type === "snapshot";
       for (const u of ev.updates ?? []) {
         // Coinbase L2 side is "bid"/"offer"; normalize "offer" -> "ask".

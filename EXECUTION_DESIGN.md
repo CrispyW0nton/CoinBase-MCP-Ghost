@@ -222,6 +222,8 @@ Advanced Trade WebSocket contract as of 2026-06-11. A future implementation
 pass must re-check those docs before coding and explicitly resolve the observed
 JWT sample discrepancy between official examples, especially issuer/audience
 fields, before signing any WebSocket subscription messages.
+The offline parser now accepts both `level2` and the official receive-channel
+example `l2_data` as Level2 depth payloads.
 
 ### 3.2 Market vs. limit selection
 

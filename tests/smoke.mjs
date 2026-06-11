@@ -101,6 +101,34 @@ async function offlineSuite() {
     assert.equal(tr.events[0].side, "buy");
   });
 
+  await check("parseCoinbaseFrame accepts official l2_data Level2 payloads", () => {
+    const now = new Date().toISOString();
+    const result = parseCoinbaseFrame({
+      channel: "l2_data",
+      client_id: "",
+      timestamp: now,
+      sequence_num: 0,
+      events: [{
+        type: "snapshot",
+        product_id: "BTC-USD",
+        updates: [{
+          side: "bid",
+          event_time: now,
+          price_level: "21921.73",
+          new_quantity: "0.06317902"
+        }]
+      }]
+    });
+    assert.equal(result.sequenceNum, 0);
+    assert.equal(result.channel, "l2_data");
+    assert.equal(result.events.length, 1);
+    assert.equal(result.events[0].type, "l2update");
+    assert.equal(result.events[0].source, "ws");
+    assert.equal(result.events[0].hasSequence, true);
+    assert.equal(result.events[0].confidence, "high");
+    assert.equal(result.events[0].degraded, false);
+  });
+
   await check("ring buffer bounds + recent()", () => {
     const rb = new RingBuffer(3);
     for (let i = 0; i < 5; i++) rb.push(makeTrade({ symbol: "BTC-USD", side: "buy", px: String(i), sz: "1", tradeId: String(i) }));
@@ -418,7 +446,7 @@ async function offlineSuite() {
     const now = new Date().toISOString();
     const frames = [
       {
-        channel: "level2",
+        channel: "l2_data",
         sequence_num: 10,
         timestamp: now,
         events: [{ type: "snapshot", product_id: "BTC-USD", updates: [

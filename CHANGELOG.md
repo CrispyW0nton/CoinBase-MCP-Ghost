@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.16.0 - Stage 1 official Level2 receive alias
+
+Stage 1 now recognizes the official Coinbase Level2 receive-channel example in
+the offline parser and audit path.
+
+- `parseCoinbaseFrame` accepts both `channel:"level2"` and `channel:"l2_data"`
+  as Level2 depth payloads.
+- Added smoke coverage for an official-shaped `l2_data` snapshot with sequenced
+  high-confidence WS provenance.
+- Updated Stage 1 docs to record the subscribe-vs-receive channel distinction.
+- No credentialed client, JWT generation, credential read, socket, SDK call,
+  order placement, stop handling, or LIVE arming was added.
+
 ## 0.15.0 - Stage 1 official WS docs review
 
 Stage 1 now records the current official Coinbase Advanced Trade WebSocket
