@@ -8,6 +8,17 @@
 > perform in a future LIVE pass, the policy that would generate each call, and
 > the kill-switch flow.
 
+> **Stage 1 note.** The current next stage is Real Sequenced Data Feed. Its
+> credential gate is closed until explicit human approval is given via
+> `APPROVE_STAGE1_KEYED_WS_DATA_FEED_ONLY`. That approval would cover only a
+> keyed Advanced Trade WebSocket market-data client with sequenced `source:"ws"`
+> provenance and gap detection. It does not authorize REST trading, order
+> placement, stops, LIVE arming, or any bypass of this execution design.
+> The current official WebSocket contract review is recorded in
+> `research/STAGE1_OFFICIAL_DOCS_REVIEW.md`; it is documentation only and did
+> not add a client, JWT generation, or sockets. The only credential read path is
+> a post-approval, offline shape validator that prints no values.
+
 ---
 
 ## 1. Safety model recap
@@ -123,6 +134,146 @@ Harris on market microstructure observation quality, Kleppmann on sequenced
 stream reliability, Lopez de Prado on low-quality samples, and Kahneman on
 operator overconfidence.
 
+Pass 4 adds offline IC research only. `coinbase_backtest` and `npm run backtest`
+read existing journal JSONL, replay the same imbalance signal causally, and
+write `research/IC_REPORT_<UTC>.md`. The report is advisory research, not an
+execution input: it cannot arm `LIVE`, cannot change `placeOrder`, and cannot
+override Kelly's refusal of degraded/non-WS inputs. A DOM-sourced or
+missing-provenance IC result must remain labeled low-confidence even when the
+number is positive.
+
+Pass 5 adds a dataset gate before research can even issue IC statistics.
+`coinbase_dataset_status` requires 2,000 paired observations, 2,000 effective
+independent observations after autocorrelation discounting, 600 chronological
+test observations, and 0 legacy/missing-provenance rows. Below that,
+`coinbase_backtest` refuses the verdict and suppresses IC/t-stat/Sharpe fields.
+This follows Grinold-Kahn's breadth framing: raw DOM sample count is not
+independent breadth, and more low-confidence DOM data does not upgrade feed
+quality. The long recorder and its manifests are observation infrastructure
+only; they do not change the LIVE ladder or sizing refusal rules.
+
+Stage 0 audits may recommend a clean-window `startDate` after the last legacy
+or missing-provenance journal row. That date is a research-window filter only:
+it keeps old audit rows visible while preventing them from contaminating future
+readiness checks. It does not upgrade DOM source quality or unlock Stage A
+until the quantity and provenance gates are both met.
+
+As of the committed Stage 0 audit generated on 2026-06-11T01:47:40Z, the clean
+window beginning `2026-06-10T20:54:21.206Z` meets the quantity/provenance gate.
+Stage A may begin in a later iteration only with that explicit filter, while
+continuing to label the source as low-confidence DOM data.
+
+Stage A then ran on that exact clean window and failed every required evidence
+gate: out-of-sample IC/t-stat, deflated Sharpe, cost survival, and
+walk-forward persistence. The terminal decision is **no durable edge, do not
+risk money** for this imbalance signal. Stage B/C/D/E are therefore not
+eligible for this signal; no API rail, risk controls, LIVE ladder wiring, or
+paper-forward autonomy should be built from it.
+
+The only permitted next research direction is Stage 1 data quality: a
+human-approved keyed Advanced Trade WebSocket feed that captures real sequenced
+depth and detects `sequence_num` gaps. Until `coinbase_stage1_credentials_status`
+reports approval, no keyed feed may be built. After approval, the feed is still
+research infrastructure only; Stage-0 readiness, walk-forward tests, deflated
+Sharpe, realistic costs, and negative-result reporting remain mandatory before
+any later execution discussion.
+
+`coinbase_stage1_feed_audit` is the non-credentialed acceptance harness for that
+future feed. It consumes supplied WS frame payloads offline and requires zero
+parse errors, zero unsequenced frames, zero sequence gaps, `source:"ws"` /
+`hasSequence:true` / `confidence:"high"` / `degraded:false` provenance, and
+real L2 depth updates before the stream-quality gate can pass. Duplicate or
+replayed sequence numbers are refused rather than journaled as clean data. The
+audit also requires heartbeat frames with monotonic `heartbeat_counter` evidence
+so liveness is not inferred from market updates alone. Passing that
+stream-quality gate is not enough for research: the resulting data must still
+clear the Stage-0 paired-observation, effective-breadth, and out-of-sample
+quantity thresholds.
+
+`coinbase_stage1_ingest_frames` is the matching offline journal writer. It uses
+the same parser/audit path, refuses dirty or gapped windows by default, appends
+only strict-provenance events to JSONL, and writes a Stage 1 manifest. This is
+fixture/backfill infrastructure only. It does not prove the live keyed feed is
+working until the supplied frames are produced by the human-approved Advanced
+Trade WS client. The manifest carries `frameEvidence` for channel inventory,
+observed sequence range, heartbeat-counter range, and a raw-frame SHA-256 digest
+so live-capture evidence can be checked without reopening raw frame files. The
+ingest path also writes `raw-frames.jsonl` beside the manifest; readiness
+verifies that archive against the digest before accepting future live evidence.
+
+`coinbase_stage1_manifest_audit` is the offline manifest/archive/journal
+integrity check. It walks Stage 1 manifests, verifies `raw-frames.jsonl` frame
+counts and digests against `frameEvidence.rawFrameSha256`, re-derives counts,
+`frameEvidence`, and provenance from the archive, verifies the exact
+`journalAppendEvidence` line window and digest, and reports summary drift
+without opening sockets or reading credentials.
+
+`coinbase_stage1_readiness` is the full Stage 1 gate reporter. It combines the
+approval gate, journal inventory, gap events, Stage-0 breadth/quantity checks,
+and Stage 1 manifests. Stage 2 cannot begin until this reporter passes: enough
+clean sequenced WS data must exist, and at least one completed manifest must
+prove live keyed WS flow rather than offline fixture ingest.
+Live evidence is not accepted from flags alone: the manifest must also show
+nonzero frames and journal writes, zero parse/unsequenced/duplicate/out-of-order
+frames, zero journal rejects, heartbeat frame/counter evidence, a valid
+`sequence_num` range, a valid raw-frame SHA-256 digest with matching archive,
+readable journal evidence containing enough clean WS rows for the manifest's
+claimed appended rows, verified `journalAppendEvidence` line bounds/digest for
+the exact rows written,
+archive-derived counts/evidence/provenance that match the manifest summary,
+100% clean provenance, and secret-free evidence that
+`coinbase_stage1_feed_preflight` passed before the live connector opened the
+market-data socket. The preflight evidence must include a `generatedAt`
+timestamp no later than the manifest start, and its subscription plan must
+include the manifest symbol, heartbeats, and `level2`. Any manifest carrying
+`evidence.testOnly:true` is rejected as live evidence.
+
+`recordStage1FrameSource` is the reusable recorder core for the future approved
+client. It accepts an async iterable of Coinbase WS frame payloads and routes
+them through the same audit/ingest/manifest path. The default metadata is
+offline/no-network/no-keyed-client; a future connector may set live evidence
+flags only when it really used the human-approved keyed WS rail.
+
+`coinbase_stage1_subscription_plan` is the offline contract for the future
+connector's subscribe messages. It plans the market-data endpoint only, one
+channel per subscribe message, heartbeats for liveness, and market-data
+channels only. It rejects the user endpoint and user/futures channels, and it
+does not generate JWTs, read credentials, or open a socket.
+
+`coinbase_stage1_credentials_validate` is the post-approval credential-shape
+check for the future connector. It calls `requireStage1KeyedWsApproval` before
+reading any proposed credential env var, then checks only the official-style key
+name and non-empty PEM private-key shape. It returns booleans/status only:
+no credential values, lengths, fingerprints, JWTs, sockets, orders, or keyed
+client implementation.
+
+`coinbase_stage1_feed_preflight` is the approval-gated offline preflight that a
+future connector should satisfy before JWT/socket implementation. It composes
+credential-shape validation with the subscription-plan contract and reports a
+single preflight verdict with a secret-free `generatedAt` timestamp. It still
+generates no JWT, opens no socket, places no orders, and returns no credential
+values.
+
+Any future keyed WS connector must call `requireStage1KeyedWsApproval` before
+reading credential material, opening a socket, or producing live evidence
+manifests. The guard is fail-closed and its approved scope is market data only;
+it still forbids REST trading, order placement, stops, LIVE arming, DOM
+execution, credential logging, and kill-switch bypass.
+
+`createStage1KeyedWsFrameSource` is currently a deliberately inert entrypoint:
+it checks the approval guard, then throws `STAGE1_KEYED_WS_CLIENT_NOT_IMPLEMENTED`.
+That gives later work a named integration point without quietly adding
+credential or network behavior before human approval and current Coinbase docs
+review.
+
+`research/STAGE1_OFFICIAL_DOCS_REVIEW.md` records the official Coinbase
+Advanced Trade WebSocket contract as of 2026-06-11. A future implementation
+pass must re-check those docs before coding and explicitly resolve the observed
+JWT sample discrepancy between official examples, especially issuer/audience
+fields, before signing any WebSocket subscription messages.
+The offline parser now accepts both `level2` and the official receive-channel
+example `l2_data` as Level2 depth payloads.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to
@@ -170,7 +321,12 @@ Operator actions:
 - No click on Preview/Place Order.
 - No `Input.dispatchMouseEvent` / `Page.dispatchMouseEvent` against the form.
 - No `Runtime.evaluate` that mutates the order form.
-- No credentials, JWT, HMAC, cookies, REST, or SDK.
+- No order-path credentials, JWT, HMAC, cookies, REST, or SDK.
+- No keyed Advanced Trade WebSocket data-feed client until the Stage 1 approval
+  phrase is explicitly provided. The current repository includes only offline
+  approval/audit/ingest/readiness scaffolding, an offline subscription-plan
+  contract, a post-approval credential-shape validator and feed preflight, a
+  fail-closed future entrypoint, and an official-docs review.
 
 Pass 2 implemented `coinbase_confirm_live` as a stub, preview reconciliation as
 a pure diff, and the PAPER P&L ledger. Future LIVE work still requires a fresh

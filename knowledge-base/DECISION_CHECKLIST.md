@@ -34,7 +34,25 @@ If any answer is "no" or "unknown", **stop and default to inaction**.
       drawdown before trusting it?
 
 ## E. Custody & asset reality (Antonopoulos; Ammous; Harvey; Finch)
-- [ ] No credentials, keys, JWTs, cookies, or REST/SDK touched anywhere.
+- [ ] No order-path credentials, keys, JWTs, cookies, or REST/SDK touched
+      anywhere.
+- [ ] If this is Stage 1 market-data work, has
+      `coinbase_stage1_credentials_status` reported the explicit
+      `APPROVE_STAGE1_KEYED_WS_DATA_FEED_ONLY` approval phrase, and is the
+      scope limited to sequenced WS data capture only?
+- [ ] If evaluating supplied Stage 1 WS frames, did
+      `coinbase_stage1_feed_audit` pass with zero parse errors, zero
+      unsequenced frames, zero gaps, 100% clean WS provenance, and Stage-0
+      readiness on WS-quality data?
+- [ ] If Stage 1 frames were written to the journal, does the
+      `coinbase_stage1_ingest_frames` manifest show `status:"complete"`,
+      zero journal rejects, and an approved live-frame source before treating
+      it as real Stage 1 evidence?
+- [ ] Before any future keyed WS code reads credential material or opens a
+      socket, did `requireStage1KeyedWsApproval` pass for that exact purpose?
+- [ ] Before moving to Stage 2, does `coinbase_stage1_readiness` pass the full
+      gate, including live keyed WS manifest evidence rather than fixture-only
+      ingest?
 - [ ] For any non-BTC/ETH asset: did due diligence pass (tokenomics, audits,
       regulatory standing)? Default = trade only the most liquid majors.
 

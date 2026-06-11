@@ -5,6 +5,7 @@ node_modules/
 # Runtime captures — keep the committed TEMPLATE, ignore real timestamped runs.
 recon/btc-usd-2*/
 journal/
+recordings/
 
 # Coinbase debug profile (never committed; lives under %LOCALAPPDATA%).
 CoinbaseMCPProfile/

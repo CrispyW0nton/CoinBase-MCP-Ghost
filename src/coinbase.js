@@ -28,9 +28,15 @@ import {
   makeTick, makeL2Update, makeTrade, makeCandle, makeGap,
   serializeEvent, dec, Decimal
 } from "./schema.js";
+import {
+  OrderBookImbalanceSignal,
+  SOURCES,
+  decimalMapSet,
+  confidenceFor,
+  degradedReasonFor
+} from "./signal.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
-const SOURCES = Object.freeze({ WS: "ws", SSE: "sse", POLL: "poll", DOM: "dom" });
 
 const ADVANCED_VIEW_RE = /https:\/\/www\.coinbase\.com\/advanced-(trade|portfolio)(?:\/|$|\?)/i;
 
@@ -198,7 +204,7 @@ async function requireSignedInTab({ debugUrl, urlContains } = {}) {
 // measured out of sample.
 // ---------------------------------------------------------------------------
 
-const book = { bid: new Map(), ask: new Map(), lastSignal: null };
+const book = new OrderBookImbalanceSignal({ levels: 10 });
 const paperLedger = {
   positionBase: new Decimal(0),
   avgCostUsd: new Decimal(0),
@@ -209,58 +215,15 @@ const paperLedger = {
   outcomes: []
 };
 
-function decimalMapSet(map, px, sz) {
-  if (!px || !sz) return;
-  const qty = dec(sz);
-  const price = dec(px);
-  if (!qty || !price) return;
-  const key = price.toString();
-  if (qty.isZero()) map.delete(key);
-  else map.set(key, qty);
-}
-
 function depth(side, levels = 10) {
-  const entries = [...book[side].entries()].map(([px, sz]) => ({ px: dec(px), sz }));
-  entries.sort((a, b) => side === "bid" ? b.px.comparedTo(a.px) : a.px.comparedTo(b.px));
-  return entries.slice(0, levels).reduce((sum, level) => sum.plus(level.sz), new Decimal(0));
+  return book.depth(side, levels);
 }
 
-function confidenceFor({ source, hasSequence }) {
-  return source === SOURCES.WS && hasSequence === true ? "high" : "low";
-}
-
-function degradedReasonFor({ source, hasSequence }) {
-  if (source !== SOURCES.WS) return `${source} source is not exchange-sequenced`;
-  if (hasSequence !== true) return "missing sequence_num";
-  return null;
-}
-
-function maybeEmitImbalanceSignal({ ts, symbol, seq, source = SOURCES.WS, ageMs = 0, hasSequence = seq !== null }) {
-  const bidDepth = depth("bid");
-  const askDepth = depth("ask");
-  const total = bidDepth.plus(askDepth);
-  if (total.isZero()) return null;
-  const value = bidDepth.minus(askDepth).div(total);
-  const signal = {
-    type: "imbalanceSignal",
-    ts: ts ?? Date.now(),
-    symbol,
-    name: "l2_depth_imbalance",
-    value,
-    bidDepth,
-    askDepth,
-    levels: 10,
-    seq: seq ?? null,
-    source,
-    ageMs,
-    hasSequence,
-    confidence: confidenceFor({ source, hasSequence }),
-    degraded: confidenceFor({ source, hasSequence }) !== "high",
-    degradedReason: degradedReasonFor({ source, hasSequence })
-  };
-  book.lastSignal = signal;
+function maybeEmitImbalanceSignal({ ts, symbol, seq, source = SOURCES.WS, ageMs = 0, hasSequence = seq !== null }, stats) {
+  const signal = book.createSignal({ ts, symbol, seq, source, ageMs, hasSequence });
+  if (!signal) return null;
   ring.push(signal);
-  journal?.append(signal);
+  appendJournal(signal, stats);
   return signal;
 }
 
@@ -372,8 +335,9 @@ function kellySizing() {
 // We MIRROR frames the page already received. The Advanced Trade WS protocol
 // (wss://advanced-trade-ws.coinbase.com) sends messages of the shape:
 //   { channel, client_id, timestamp, sequence_num, events: [...] }
-// with channels: heartbeats, ticker, ticker_batch, level2, market_trades,
-// candles, status, user. We normalize the subset relevant to recon.
+// with channels: heartbeats, ticker, ticker_batch, level2/l2_data,
+// market_trades, candles, status, user. We normalize the subset relevant to
+// recon.
 //
 // Harris, "Trading and Exchanges" (Ch. 6 on order-driven markets, Ch. 7 on
 // the limit order book): the level2 channel is the live limit order book; the
@@ -415,7 +379,7 @@ export function parseCoinbaseFrame(msg) {
           ...frameProvenance
         }));
       }
-    } else if (channel === "level2") {
+    } else if (channel === "level2" || channel === "l2_data") {
       const isSnapshot = ev.type === "snapshot";
       for (const u of ev.updates ?? []) {
         // Coinbase L2 side is "bid"/"offer"; normalize "offer" -> "ask".
@@ -466,11 +430,17 @@ let journal = null;
 
 export function getRing() { return ring; }
 
+function appendJournal(evt, stats) {
+  const result = journal?.append(evt);
+  if (result?.rejected && stats) stats.journalRejected = (stats.journalRejected || 0) + 1;
+  return result;
+}
+
 export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 } = {}) {
   const { session, tab, cfg, view } = await requireSignedInTab({ debugUrl, urlContains });
   journal = journal || new JsonlJournal({ symbol: cfg.symbol });
 
-  const stats = { ticks: 0, l2: 0, trades: 0, candles: 0, gaps: 0, signals: 0, frames: 0, sockets: new Set() };
+  const stats = { ticks: 0, l2: 0, trades: 0, candles: 0, gaps: 0, signals: 0, frames: 0, journalRejected: 0, sockets: new Set() };
   // Per-channel last sequence number, for gap detection. Coinbase increments
   // sequence_num monotonically per connection; a skip => dropped frame(s).
   let lastSeq = null;
@@ -497,7 +467,7 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
     if (sequenceNum !== null) {
       if (lastSeq !== null && sequenceNum > lastSeq + 1) {
         const gap = makeGap({ symbol: cfg.symbol, expectedSeq: lastSeq + 1, gotSeq: sequenceNum, channel });
-        ring.push(gap); journal.append(gap); stats.gaps++;
+        ring.push(gap); appendJournal(gap, stats); stats.gaps++;
         // NOTE: we do NOT invent a resubscribe. Step 3 observes how the page
         // itself reconnects; the recon report records that behavior so a
         // future pass can mirror it. (Kleppmann Ch.11: prefer the system's
@@ -507,25 +477,7 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
     }
 
     for (const evt of events) {
-      ring.push(evt);
-      journal.append(evt);
-      if (evt.type === "tick") {
-        stats.ticks++;
-        markLedger(evt.lastPx ?? evt.bidPx ?? evt.askPx);
-      } else if (evt.type === "l2update") {
-        stats.l2++;
-        decimalMapSet(book[evt.side], evt.px, evt.sz);
-        if (maybeEmitImbalanceSignal({
-          ts: evt.ts,
-          symbol: evt.symbol,
-          seq: evt.seq,
-          source: evt.source,
-          ageMs: evt.ageMs,
-          hasSequence: evt.hasSequence
-        })) stats.signals++;
-      }
-      else if (evt.type === "trade") stats.trades++;
-      else if (evt.type === "candle") stats.candles++;
+      processObservedEvent(evt, stats);
     }
   };
 
@@ -543,23 +495,7 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
   if (stats.frames === 0) {
     const fallback = await collectDomOrderBook(session, cfg.symbol);
     for (const evt of fallback.events) {
-      ring.push(evt);
-      journal.append(evt);
-      if (evt.type === "tick") {
-        stats.ticks++;
-        markLedger(evt.lastPx ?? evt.bidPx ?? evt.askPx);
-      } else if (evt.type === "l2update") {
-        stats.l2++;
-        decimalMapSet(book[evt.side], evt.px, evt.sz);
-        if (maybeEmitImbalanceSignal({
-          ts: evt.ts,
-          symbol: evt.symbol,
-          seq: evt.seq,
-          source: evt.source,
-          ageMs: evt.ageMs,
-          hasSequence: evt.hasSequence
-        })) stats.signals++;
-      }
+      processObservedEvent(evt, stats);
     }
     stats.domFallback = fallback.events.length > 0;
   }
@@ -583,13 +519,157 @@ export async function marketStream({ debugUrl, urlContains, durationMs = 30_000 
     startView: view,
     activeView: viewFromUrl(activeUrl),
     source: stats.frames > 0 ? SOURCES.WS : (stats.domFallback ? SOURCES.DOM : null),
-    counts: { ticks: stats.ticks, l2: stats.l2, trades: stats.trades, candles: stats.candles, gaps: stats.gaps, signals: stats.signals, frames: stats.frames },
+    counts: { ticks: stats.ticks, l2: stats.l2, trades: stats.trades, candles: stats.candles, gaps: stats.gaps, signals: stats.signals, frames: stats.frames, journalRejected: stats.journalRejected },
     domFallback: Boolean(stats.domFallback),
     journalPath: journal.path(),
+    journalStats: journal.stats(),
     ringSize: ring.size(),
     lastSignal: book.lastSignal ? serializeEvent(book.lastSignal) : null,
     paperLedger: paperLedgerSnapshot()
   };
+}
+
+export async function record({ debugUrl, urlContains, durationMs = 60 * 60 * 1000, sampleIntervalMs = 1000, healthIntervalMs = 30_000, outputRoot = "recordings" } = {}) {
+  const cfg = loadConfig();
+  const symbol = cfg.symbol;
+  journal = journal || new JsonlJournal({ symbol });
+  const startedAt = new Date().toISOString();
+  const stamp = startedAt.replace(/[:.]/g, "-");
+  const outputDir = path.join(outputRoot, `${symbol.toLowerCase()}-${stamp}`);
+  const manifestPath = path.join(outputDir, "manifest.json");
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const stats = {
+    ticks: 0, l2: 0, trades: 0, candles: 0, gaps: 0, signals: 0, frames: 0,
+    journalRejected: 0, samples: 0, emptySamples: 0
+  };
+  const manifest = {
+    recording: true,
+    mode: cfg.mode,
+    symbol,
+    source: SOURCES.DOM,
+    dataQuality: "low-confidence / DOM-sourced",
+    startedAt,
+    endedAt: null,
+    durationMs,
+    sampleIntervalMs,
+    healthIntervalMs,
+    outputDir,
+    journalPath: journal.path(),
+    counts: stats,
+    provenance: { bySource: {}, byConfidence: {}, degraded: { true: 0, false: 0 } },
+    disconnects: [],
+    health: []
+  };
+
+  let session = null;
+  let tab = null;
+  let view = null;
+  let nextHealth = Date.now();
+  let deadline = null;
+
+  async function connect() {
+    const attached = await requireSignedInTab({ debugUrl, urlContains });
+    session = attached.session;
+    tab = attached.tab;
+    view = attached.view;
+    if (view === "portfolio") {
+      const loaded = session.waitForEvent("Page.loadEventFired", 30_000).catch(() => null);
+      await session.command("Page.navigate", { url: `https://www.coinbase.com/advanced-trade/spot/${encodeURIComponent(symbol)}` });
+      await loaded;
+      await new Promise(resolve => setTimeout(resolve, 2_000));
+    }
+  }
+
+  async function writeManifest(status = "recording") {
+    manifest.status = status;
+    manifest.lastHeartbeatAt = new Date().toISOString();
+    manifest.journalStats = journal.stats();
+    manifest.ringSize = ring.size();
+    manifest.counts = { ...stats };
+    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+  }
+
+  try {
+    await connect();
+    deadline = Date.now() + Number(durationMs);
+    while (Date.now() < deadline) {
+      try {
+        const sample = await collectDomOrderBook(session, symbol);
+        stats.samples++;
+        if (sample.events.length === 0) stats.emptySamples++;
+        for (const evt of sample.events) {
+          countProvenance(manifest.provenance, evt);
+          processObservedEvent(evt, stats);
+        }
+      } catch (err) {
+        const disconnect = { at: new Date().toISOString(), reason: err.message };
+        manifest.disconnects.push(disconnect);
+        session?.close?.();
+        session = null;
+        await writeManifest("reconnecting");
+        await new Promise(resolve => setTimeout(resolve, 2_000));
+        await connect();
+      }
+
+      if (Date.now() >= nextHealth) {
+        manifest.health.push({
+          at: new Date().toISOString(),
+          samples: stats.samples,
+          events: stats.ticks + stats.l2 + stats.trades + stats.candles + stats.signals,
+          journalRejected: stats.journalRejected,
+          ringSize: ring.size()
+        });
+        manifest.health = manifest.health.slice(-500);
+        await writeManifest("recording");
+        nextHealth = Date.now() + Number(healthIntervalMs);
+      }
+      await new Promise(resolve => setTimeout(resolve, Number(sampleIntervalMs)));
+    }
+  } finally {
+    session?.close?.();
+    manifest.recording = false;
+    manifest.endedAt = new Date().toISOString();
+    await writeManifest("complete");
+  }
+
+  return {
+    recorded: true,
+    manifestPath,
+    journalPath: journal.path(),
+    counts: stats,
+    provenance: manifest.provenance,
+    disconnects: manifest.disconnects,
+    journalStats: journal.stats()
+  };
+}
+
+function processObservedEvent(evt, stats) {
+  ring.push(evt);
+  appendJournal(evt, stats);
+  if (evt.type === "tick") {
+    stats.ticks++;
+    markLedger(evt.lastPx ?? evt.bidPx ?? evt.askPx);
+  } else if (evt.type === "l2update") {
+    stats.l2++;
+    decimalMapSet(book[evt.side], evt.px, evt.sz);
+    if (maybeEmitImbalanceSignal({
+      ts: evt.ts,
+      symbol: evt.symbol,
+      seq: evt.seq,
+      source: evt.source,
+      ageMs: evt.ageMs,
+      hasSequence: evt.hasSequence
+    }, stats)) stats.signals++;
+  }
+  else if (evt.type === "trade") stats.trades++;
+  else if (evt.type === "candle") stats.candles++;
+}
+
+function countProvenance(bucket, evt) {
+  bucket.bySource[evt.source] = (bucket.bySource[evt.source] || 0) + 1;
+  bucket.byConfidence[evt.confidence] = (bucket.byConfidence[evt.confidence] || 0) + 1;
+  bucket.degraded[evt.degraded === true ? "true" : "false"]++;
 }
 
 async function collectDomOrderBook(session, symbol) {
@@ -606,7 +686,17 @@ async function collectDomOrderBook(session, symbol) {
       if (Number(price) > 1000 && Number(size) >= 0 && Number(size) < 1000) pairs.push({ price, size });
     }
     const half = Math.floor(pairs.length / 2);
-    return { bids: pairs.slice(0, half), asks: pairs.slice(half), capturedAt: Date.now() };
+    const tradeStart = lines.findIndex(line => /Recent trades/i.test(line));
+    const tradeNums = lines.slice(tradeStart >= 0 ? tradeStart + 1 : lines.length, tradeStart >= 0 ? tradeStart + 90 : lines.length)
+      .map(line => line.replace(/,/g, ""))
+      .filter(line => /^\\d+(?:\\.\\d+)?$/.test(line));
+    const trades = [];
+    for (let i = 0; i < tradeNums.length - 1 && trades.length < 20; i += 2) {
+      const price = tradeNums[i];
+      const size = tradeNums[i + 1];
+      if (Number(price) > 1000 && Number(size) > 0 && Number(size) < 1000) trades.push({ price, size });
+    }
+    return { bids: pairs.slice(0, half), asks: pairs.slice(half), trades, capturedAt: Date.now() };
   })()`);
   const ts = sample?.capturedAt || Date.now();
   const provenance = {
@@ -629,6 +719,13 @@ async function collectDomOrderBook(session, symbol) {
       bidPx: sample.bids[0].price, bidSz: sample.bids[0].size,
       askPx: sample.asks[0].price, askSz: sample.asks[0].size,
       lastPx: null, lastSz: null,
+      ...provenance
+    }));
+  }
+  for (const trade of sample?.trades || []) {
+    events.push(makeTrade({
+      ts, symbol, side: null, px: trade.price, sz: trade.size,
+      tradeId: `dom-${ts}-${trade.price}-${trade.size}`,
       ...provenance
     }));
   }
@@ -1595,6 +1692,7 @@ export async function placeOrder(args = {}) {
     notionalUsd: notional.toString(), limitPrice: limitPrice ?? null,
     timeInForce, mode: cfg.mode,
     source: lastTick?.source ?? null,
+    ageMs: lastTick?.ageMs ?? 0,
     hasSequence: lastTick?.hasSequence === true,
     confidence: lastTick?.confidence ?? "low",
     degraded: lastTick?.degraded !== false,

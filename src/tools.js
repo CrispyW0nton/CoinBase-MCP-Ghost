@@ -5,6 +5,7 @@ import {
   attach as coinbaseAttach,
   recon as coinbaseRecon,
   marketStream as coinbaseMarketStream,
+  record as coinbaseRecord,
   snapshotState as coinbaseSnapshotState,
   portfolioSnapshot as coinbasePortfolioSnapshot,
   placeOrder as coinbasePlaceOrder,
@@ -13,6 +14,18 @@ import {
   reconcilePreviewIntent as coinbaseReconcilePreviewIntent,
   diagnoseTransport as coinbaseDiagnoseTransport
 } from "./coinbase.js";
+import { replayBacktest as coinbaseBacktest } from "./replay.js";
+import { datasetStatus as coinbaseDatasetStatus } from "./replay.js";
+import { dataAudit as coinbaseDataAudit } from "./audit.js";
+import { stageAAnalysis as coinbaseStageA } from "./stage-a.js";
+import { stage1ApprovalStatus as coinbaseStage1ApprovalStatus } from "./stage1-approval.js";
+import { validateStage1CredentialMaterial as coinbaseStage1CredentialValidate } from "./stage1-credentials.js";
+import { stage1FeedAudit as coinbaseStage1FeedAudit } from "./stage1-feed-audit.js";
+import { stage1IngestFrames as coinbaseStage1IngestFrames } from "./stage1-ingest.js";
+import { stage1ManifestAudit as coinbaseStage1ManifestAudit } from "./stage1-manifest-audit.js";
+import { stage1FeedPreflight as coinbaseStage1FeedPreflight } from "./stage1-preflight.js";
+import { stage1Readiness as coinbaseStage1Readiness } from "./stage1-readiness.js";
+import { createStage1SubscriptionPlan as coinbaseStage1SubscriptionPlan } from "./stage1-ws-contract.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
 
@@ -215,6 +228,205 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_backtest",
+    description: "OFFLINE ONLY. Replay journal JSONL through the same causal order-book-imbalance signal layer, compute IC/train-test/deflated-Sharpe metrics, and write research/IC_REPORT_<UTC>.md. No Chrome, Coinbase REST/SDK, sockets, credentials, or clicks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        journalDir: { type: "string", default: "journal" },
+        files: { type: "array", items: { type: "string" } },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 },
+        trials: { type: "number", default: 1 },
+        outputDir: { type: "string", default: "research" },
+        writeReport: { type: "boolean", default: true }
+      }
+    }
+  },
+  {
+    name: "coinbase_dataset_status",
+    description: "OFFLINE ONLY. Inspect journal JSONL readiness for IC research: events, paired observations, provenance completeness, date span, effective breadth, and READY/NOT-READY verdict. No Chrome, Coinbase REST/SDK, sockets, credentials, or clicks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        journalDir: { type: "string", default: "journal" },
+        files: { type: "array", items: { type: "string" } },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 }
+      }
+    }
+  },
+  {
+    name: "coinbase_data_audit",
+    description: "OFFLINE ONLY. Write a Stage 0 data audit report covering dataset readiness, legacy/unusable journal rows, recording manifests, and journal quarantine counts. No Chrome, Coinbase REST/SDK, sockets, credentials, or clicks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        journalDir: { type: "string", default: "journal" },
+        recordingsDir: { type: "string", default: "recordings" },
+        quarantineDir: { type: "string" },
+        files: { type: "array", items: { type: "string" } },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 },
+        outputDir: { type: "string", default: "research" },
+        writeReport: { type: "boolean", default: true }
+      }
+    }
+  },
+  {
+    name: "coinbase_stage_a",
+    description: "OFFLINE ONLY. Run Stage A honest edge measurement after Stage 0 is READY: OOS IC/t-stat, non-overlapping walk-forward windows, conservative fee/spread/slippage costs, deflated Sharpe, and terminal no-edge verdict when gates fail. No Chrome, REST/SDK, sockets, credentials, clicks, or orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        journalDir: { type: "string", default: "journal" },
+        files: { type: "array", items: { type: "string" } },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 },
+        trials: { type: "number", default: 1 },
+        walkForwardWindows: { type: "number", default: 5 },
+        minWindowObservations: { type: "number", default: 100 },
+        feeBps: { type: "number", default: 60 },
+        spreadBps: { type: "number", default: 2 },
+        slippageBps: { type: "number", default: 2 },
+        outputDir: { type: "string", default: "research" },
+        writeReport: { type: "boolean", default: true }
+      }
+    }
+  },
+  {
+    name: "coinbase_stage1_credentials_status",
+    description: "OFFLINE ONLY. Report whether the explicit Stage 1 human approval phrase is present and whether proposed Advanced Trade credential env vars are set. Never prints secret values, opens no socket, validates no credentials, and does not implement the keyed WS client.",
+    inputSchema: {
+      type: "object",
+      properties: {}
+    }
+  },
+  {
+    name: "coinbase_stage1_credentials_validate",
+    description: "OFFLINE ONLY. After the explicit Stage 1 approval phrase is present, read proposed Advanced Trade credential env vars and validate key-name/PEM shape without printing values. Opens no socket, generates no JWT, places no orders, and does not implement the keyed WS client.",
+    inputSchema: {
+      type: "object",
+      properties: {}
+    }
+  },
+  {
+    name: "coinbase_stage1_feed_preflight",
+    description: "OFFLINE ONLY. Approval-required preflight for the future keyed Advanced Trade WS data feed: credential shape plus market-data subscription contract with generatedAt ordering evidence. Prints no credential values, opens no socket, generates no JWT, and places no orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        productIds: { type: "array", items: { type: "string" }, default: ["BTC-USD"] },
+        channels: { type: "array", items: { type: "string" }, default: ["level2", "ticker", "market_trades"] },
+        includeHeartbeats: { type: "boolean", default: true }
+      }
+    }
+  },
+  {
+    name: "coinbase_stage1_feed_audit",
+    description: "OFFLINE ONLY. Audit supplied Coinbase Advanced Trade WS frame payloads for sequence_num gaps, duplicate/replay frames, heartbeat/liveness evidence, source:\"ws\" provenance, normalized depth/trade/tick counts, and Stage-0 readiness on WS-quality data. Opens no socket, uses no credentials, and places no orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        frames: { type: "array", items: {} },
+        frameFile: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 },
+        trials: { type: "number", default: 1 },
+        outputDir: { type: "string", default: "research" },
+        writeReport: { type: "boolean", default: false }
+      }
+    }
+  },
+  {
+    name: "coinbase_stage1_ingest_frames",
+    description: "OFFLINE ONLY. Convert supplied Coinbase Advanced Trade WS frame payloads into strict-provenance JSONL journal rows and a Stage 1 manifest after the WS-quality gate passes. Refuses dirty/gapped windows by default. Opens no socket, uses no credentials, and places no orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        frames: { type: "array", items: {} },
+        frameFile: { type: "string" },
+        journalDir: { type: "string", default: "journal" },
+        outputRoot: { type: "string", default: "recordings" },
+        requireClean: { type: "boolean", default: true },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 },
+        trials: { type: "number", default: 1 }
+      }
+    }
+  },
+  {
+    name: "coinbase_stage1_manifest_audit",
+    description: "OFFLINE ONLY. Audit Stage 1 manifests, raw-frames.jsonl archives, and exact journal append evidence for digest/frame-count integrity, then re-derive counts, frame evidence, provenance, and appended journal rows. Opens no socket, uses no credentials, and places no orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        recordingsDir: { type: "string", default: "recordings" }
+      }
+    }
+  },
+  {
+    name: "coinbase_stage1_readiness",
+    description: "OFFLINE ONLY. Report the full Stage 1 gate over journal data and manifests: credential approval, WS-only/high-confidence/gap-free data, Stage-0 readiness on WS-quality data, and non-test live keyed WS manifest evidence with exact journal append reconciliation, preflight timing, and matching product/level2 subscription. Opens no socket and places no orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        journalDir: { type: "string", default: "journal" },
+        recordingsDir: { type: "string", default: "recordings" },
+        files: { type: "array", items: { type: "string" } },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 },
+        trials: { type: "number", default: 1 }
+      }
+    }
+  },
+  {
+    name: "coinbase_stage1_subscription_plan",
+    description: "OFFLINE ONLY. Build and validate the future Advanced Trade WS market-data subscribe-message plan: market endpoint only, one channel per message, heartbeats for liveness, no user/trading channels, no JWT generation, no socket.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        productIds: { type: "array", items: { type: "string" }, default: ["BTC-USD"] },
+        channels: { type: "array", items: { type: "string" }, default: ["level2", "ticker", "market_trades"] },
+        includeHeartbeats: { type: "boolean", default: true },
+        jwt: { type: "string" },
+        endpoint: { type: "string", default: "wss://advanced-trade-ws.coinbase.com" }
+      }
+    }
+  },
+  {
     name: "coinbase_attach",
     description: "Attach (fail-closed) to an already-open, already-signed-in Coinbase Advanced Trade tab in the debug profile. Returns { attached, signedIn, tab, probeResults }. Never falls back to an unrelated tab.",
     inputSchema: {
@@ -291,6 +503,21 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_record",
+    description: "Long OBSERVE recording session. Samples the live Coinbase DOM order book/trades tape, writes fully-provenanced DOM events to the append-only journal, handles reconnects, and writes recordings/<symbol>-<UTC>/manifest.json. No REST/SDK/sockets/clicks/orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
+        urlContains: { anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], default: ["coinbase.com/advanced-trade", "coinbase.com/advanced-portfolio"] },
+        durationMs: { type: "number", default: 3600000 },
+        sampleIntervalMs: { type: "number", default: 1000 },
+        healthIntervalMs: { type: "number", default: 30000 },
+        outputRoot: { type: "string", default: "recordings" }
+      }
+    }
+  },
+  {
     name: "coinbase_paper_ledger",
     description: "Read the in-memory PAPER trading ledger: running position, realized/unrealized P&L, recent simulated fills, and advisory half-Kelly sizing from measured PAPER outcomes. Read-only.",
     inputSchema: {
@@ -351,10 +578,36 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbaseAttach(args), null, 2));
     case "coinbase_diagnose_transport":
       return textResult(JSON.stringify(await coinbaseDiagnoseTransport(args), null, 2));
+    case "coinbase_backtest":
+      return textResult(JSON.stringify(await coinbaseBacktest(args), null, 2));
+    case "coinbase_dataset_status":
+      return textResult(JSON.stringify(await coinbaseDatasetStatus(args), null, 2));
+    case "coinbase_data_audit":
+      return textResult(JSON.stringify(await coinbaseDataAudit(args), null, 2));
+    case "coinbase_stage_a":
+      return textResult(JSON.stringify(await coinbaseStageA(args), null, 2));
+    case "coinbase_stage1_credentials_status":
+      return textResult(JSON.stringify(coinbaseStage1ApprovalStatus(), null, 2));
+    case "coinbase_stage1_credentials_validate":
+      return textResult(JSON.stringify(coinbaseStage1CredentialValidate(), null, 2));
+    case "coinbase_stage1_feed_preflight":
+      return textResult(JSON.stringify(coinbaseStage1FeedPreflight(args), null, 2));
+    case "coinbase_stage1_feed_audit":
+      return textResult(JSON.stringify(await coinbaseStage1FeedAudit(args), null, 2));
+    case "coinbase_stage1_ingest_frames":
+      return textResult(JSON.stringify(await coinbaseStage1IngestFrames(args), null, 2));
+    case "coinbase_stage1_manifest_audit":
+      return textResult(JSON.stringify(await coinbaseStage1ManifestAudit(args), null, 2));
+    case "coinbase_stage1_readiness":
+      return textResult(JSON.stringify(await coinbaseStage1Readiness(args), null, 2));
+    case "coinbase_stage1_subscription_plan":
+      return textResult(JSON.stringify(coinbaseStage1SubscriptionPlan(args), null, 2));
     case "coinbase_recon":
       return textResult(JSON.stringify(await coinbaseRecon(args), null, 2));
     case "coinbase_market_stream":
       return textResult(JSON.stringify(await coinbaseMarketStream(args), null, 2));
+    case "coinbase_record":
+      return textResult(JSON.stringify(await coinbaseRecord(args), null, 2));
     case "coinbase_snapshot_state":
       return textResult(JSON.stringify(await coinbaseSnapshotState(args), null, 2));
     case "coinbase_portfolio_snapshot":

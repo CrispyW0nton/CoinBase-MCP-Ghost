@@ -1,0 +1,195 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { JsonlJournal } from "./journal.js";
+import {
+  loadStage1FrameFile,
+  parseStage1Frames,
+  stage1FeedAudit
+} from "./stage1-feed-audit.js";
+import { stableJsonDigest, writeRawFrameArchive } from "./stage1-frame-evidence.js";
+
+const DEFAULT_SYMBOL = "BTC-USD";
+
+export async function stage1IngestFrames(args = {}) {
+  const {
+    symbol = DEFAULT_SYMBOL,
+    frames,
+    frameFile,
+    journalDir = "journal",
+    outputRoot = "recordings",
+    requireClean = true,
+    manifestMeta = {}
+  } = args;
+  const startedAt = new Date().toISOString();
+  const stamp = startedAt.replace(/[:.]/g, "-");
+  const outputDir = path.join(outputRoot, `stage1-ws-${symbol.toLowerCase()}-${stamp}`);
+  const manifestPath = path.join(outputDir, "manifest.json");
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const rawFrames = Array.isArray(frames) ? frames : await loadStage1FrameFile(frameFile);
+  const rawFrameArchive = await writeRawFrameArchive(path.join(outputDir, "raw-frames.jsonl"), rawFrames);
+  const parsed = parseStage1Frames({ rawFrames, symbol });
+  const audit = await stage1FeedAudit({ ...args, frames: rawFrames, writeReport: false });
+  const manifest = baseManifest({
+    symbol,
+    startedAt,
+    frameFile,
+    journalDir,
+    outputDir,
+    rawFrames,
+    rawFrameArchive,
+    parsed,
+    audit,
+    manifestMeta
+  });
+
+  if (requireClean !== false && !audit.wsQualityGate.pass) {
+    manifest.status = "refused";
+    manifest.refused = true;
+    manifest.refusalReason = `WS quality gate failed: ${audit.wsQualityGate.reasons.join("; ")}`;
+    manifest.endedAt = new Date().toISOString();
+    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+    return {
+      ingested: false,
+      refused: true,
+      reason: manifest.refusalReason,
+      manifestPath,
+      rawFrameArchivePath: path.join(outputDir, rawFrameArchive.path),
+      audit
+    };
+  }
+
+  const journal = new JsonlJournal({ baseDir: journalDir, symbol, strictProvenance: true });
+  const journalPath = journal.path();
+  const journalStartLine = await countJsonlLines(journalPath);
+  const appendResults = [];
+  for (const evt of parsed.events) {
+    appendResults.push(journal.append(evt));
+  }
+  await journal.close();
+  const writtenEvents = parsed.serializedEvents.filter((_, index) => appendResults[index]?.written);
+
+  manifest.status = "complete";
+  manifest.ingested = true;
+  manifest.refused = false;
+  manifest.endedAt = new Date().toISOString();
+  manifest.journalPath = journalPath;
+  manifest.journalStats = journal.stats();
+  manifest.appended = {
+    written: appendResults.filter(item => item?.written).length,
+    rejected: appendResults.filter(item => item?.rejected).length
+  };
+  manifest.journalAppendEvidence = {
+    path: journalPath,
+    startLine: manifest.appended.written ? journalStartLine + 1 : journalStartLine,
+    endLine: journalStartLine + manifest.appended.written,
+    rows: manifest.appended.written,
+    sha256: stableJsonDigest(writtenEvents)
+  };
+  manifest.counts.journalRejected = manifest.appended.rejected;
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+
+  return {
+    ingested: true,
+    refused: false,
+    manifestPath,
+    rawFrameArchivePath: path.join(outputDir, rawFrameArchive.path),
+    journalPath,
+    journalStats: journal.stats(),
+    appended: manifest.appended,
+    audit
+  };
+}
+
+async function countJsonlLines(file) {
+  try {
+    const text = await fs.readFile(file, "utf8");
+    return text.split(/\r?\n/).filter(Boolean).length;
+  } catch {
+    return 0;
+  }
+}
+
+function baseManifest({ symbol, startedAt, frameFile, journalDir, outputDir, rawFrames, rawFrameArchive, parsed, audit, manifestMeta = {} }) {
+  return {
+    stage: "Stage 1 - Real Sequenced Data Feed",
+    recording: false,
+    offlineOnly: manifestMeta.offlineOnly ?? true,
+    networkTouched: manifestMeta.networkTouched === true,
+    keyedClientImplemented: manifestMeta.keyedClientImplemented === true,
+    liveWsFlowObserved: manifestMeta.liveWsFlowObserved === true,
+    liveTradingEnabled: false,
+    source: "ws",
+    dataQuality: audit.wsQualityGate.pass ? "sequenced/high-confidence" : "failed ws-quality gate",
+    symbol,
+    startedAt,
+    endedAt: null,
+    frameFile: frameFile || null,
+    framesInput: rawFrames.length,
+    rawFrameArchive,
+    journalDir,
+    outputDir,
+    counts: {
+      ...parsed.counts,
+      frames: parsed.stats.total,
+      parseErrors: parsed.stats.parseErrors,
+      unsequenced: parsed.stats.unsequenced,
+      duplicateOrReplay: parsed.stats.duplicateOrReplay,
+      outOfOrder: parsed.stats.outOfOrder,
+      journalRejected: 0
+    },
+    frameEvidence: parsed.frameEvidence,
+    provenance: {
+      ...parsed.provenance,
+      pctClean: parsed.provenance.totalEvents
+        ? Number((parsed.provenance.cleanEvents / parsed.provenance.totalEvents * 100).toFixed(6))
+        : 0
+    },
+    gaps: parsed.gapEvents,
+    wsQualityGate: audit.wsQualityGate,
+    stage0Readiness: audit.stage0Readiness,
+    replay: audit.replay,
+    safety: {
+      noCredentials: manifestMeta.keyedClientImplemented === true ? false : true,
+      noNetwork: manifestMeta.networkTouched === true ? false : true,
+      noOrders: true,
+      noLiveArming: true
+    },
+    evidence: manifestMeta.evidence || null
+  };
+}
+
+function parseArgs(argv = process.argv.slice(2)) {
+  const args = {};
+  for (let i = 0; i < argv.length; i++) {
+    const item = argv[i];
+    if (!item.startsWith("--")) continue;
+    const key = item.slice(2);
+    const next = argv[i + 1];
+    if (next === undefined || next.startsWith("--")) {
+      args[key] = true;
+    } else {
+      args[key] = next;
+      i++;
+    }
+  }
+  if (args.frames && !args.frameFile) args.frameFile = args.frames;
+  if (args.requireClean !== undefined) args.requireClean = args.requireClean !== "false";
+  for (const key of ["horizonSeconds", "horizonObservations", "depthLevels", "trainFraction", "trials"]) {
+    if (args[key] !== undefined && args[key] !== true) args[key] = Number(args[key]);
+  }
+  return args;
+}
+
+async function main() {
+  const result = await stage1IngestFrames(parseArgs());
+  console.log(JSON.stringify(result, null, 2));
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch(err => {
+    console.error(err.stack || err.message);
+    process.exit(1);
+  });
+}
