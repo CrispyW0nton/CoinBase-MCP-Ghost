@@ -30,6 +30,9 @@ rather than trying to prove an edge.
 ### Dataset readiness
 
 - Added `coinbase_dataset_status` and `npm run dataset`.
+- Added `coinbase_data_audit` and `npm run audit` to write Stage 0 audit
+  reports covering readiness, recording manifests, quarantine counts, and
+  legacy/unusable journal rows.
 - Backtests now require 2,000 paired observations, 2,000 effective independent
   observations after autocorrelation discounting, 600 chronological test
   observations, and 0 legacy/missing-provenance rows before issuing IC metrics.

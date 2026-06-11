@@ -31,6 +31,7 @@ import { RingBuffer, JsonlJournal } from "../src/journal.js";
 import { validateJournalProvenance } from "../src/journal.js";
 import { parseCoinbaseFrame, reconcilePreviewIntent, confirmLive, paperLedgerState } from "../src/coinbase.js";
 import { replayEvents, replayBacktest } from "../src/replay.js";
+import { dataAudit } from "../src/audit.js";
 
 let failures = 0;
 function check(name, fn) {
@@ -255,6 +256,43 @@ async function offlineSuite() {
     assert.equal(result.readiness.verdict, "NOT-READY");
     assert.match(result.metrics.verdict.label, /^Refused/);
     assert.equal(result.metrics.all.ic, null);
+  });
+
+  await check("data audit summarizes readiness, manifests, quarantine, and legacy rows", async () => {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-audit-"));
+    const journalFile = path.join(baseDir, "journal.jsonl");
+    const recordingsDir = path.join(baseDir, "recordings");
+    const manifestDir = path.join(recordingsDir, "btc-usd-test");
+    const quarantineDir = path.join(baseDir, "quarantine");
+    fs.mkdirSync(manifestDir, { recursive: true });
+    fs.mkdirSync(quarantineDir, { recursive: true });
+    const clean = serializeEvent(makeL2Update({ ts: 1, symbol: "BTC-USD", side: "bid", px: "100", sz: "2", source: "dom", ageMs: 0, hasSequence: false, confidence: "low", degradedReason: "rendered DOM snapshot" }));
+    const legacy = { type: "l2update", ts: 2, symbol: "BTC-USD", side: "ask", px: "101", sz: "1" };
+    fs.writeFileSync(journalFile, JSON.stringify(clean) + "\n" + JSON.stringify(legacy) + "\n", "utf8");
+    fs.writeFileSync(path.join(manifestDir, "manifest.json"), JSON.stringify({
+      status: "complete",
+      recording: false,
+      symbol: "BTC-USD",
+      startedAt: new Date(0).toISOString(),
+      endedAt: new Date(1000).toISOString(),
+      source: "dom",
+      dataQuality: "low-confidence / DOM-sourced",
+      counts: { samples: 1, ticks: 1, l2: 2, trades: 0, candles: 0, signals: 1, journalRejected: 0 },
+      disconnects: [],
+      provenance: { bySource: { dom: 3 }, byConfidence: { low: 3 }, degraded: { true: 3, false: 0 } }
+    }), "utf8");
+    fs.writeFileSync(path.join(quarantineDir, "q.jsonl"), JSON.stringify({ reason: "missing or invalid provenance fields: source", event: legacy }) + "\n", "utf8");
+    const audit = await dataAudit({
+      files: [journalFile],
+      recordingsDir,
+      quarantineDir,
+      writeReport: false,
+      horizonObservations: 1
+    });
+    assert.equal(audit.gate, "NOT-READY");
+    assert.equal(audit.recordings.count, 1);
+    assert.equal(audit.quarantine.rows, 1);
+    assert.equal(audit.migration.legacyUnusableRows, 1);
   });
 }
 

@@ -22,7 +22,11 @@
    effective independent observations, and 600 chronological test observations
    before any IC verdict. Grinold-Kahn breadth is independent breadth, not raw
    DOM sample count.
-7. `coinbase_backtest` or `npm run backtest -- --symbol BTC-USD` — offline
+7. `coinbase_data_audit` or `npm run audit -- --symbol BTC-USD` — write a
+   Stage 0 audit report with dataset status, recording manifests, quarantine
+   reasons, and legacy/unusable-row migration notes. This is the audit loop
+   while the Stage 0 gate is closed.
+8. `coinbase_backtest` or `npm run backtest -- --symbol BTC-USD` — offline
    replay only. Measure Spearman IC chronologically (train/test), report
    breadth/autocorrelation and deflated-Sharpe controls only after the dataset
    gate passes. Keep every DOM/degraded result labeled **low-confidence /

@@ -107,6 +107,7 @@ Leave this window open while you use the MCP.
 | `coinbase_diagnose_transport` | Passive WS/SSE/poll/WebTransport diagnostic. Attaches before same-tab navigation, checks page and worker targets, and writes a `WS TAP VIABLE` verdict. |
 | `coinbase_backtest` | **Offline only.** Replays journal JSONL through the same causal imbalance signal layer, computes train/test Spearman IC, breadth, deflated-Sharpe controls, and writes `research/IC_REPORT_<UTC>.md`. No Chrome, REST, SDK, sockets, credentials, or clicks. |
 | `coinbase_dataset_status` | **Offline only.** Reports journal inventory, paired observations, clean provenance percentage, effective breadth, and READY / NOT-READY for IC research. |
+| `coinbase_data_audit` | **Offline only.** Writes a Stage 0 audit report covering readiness, legacy/unusable rows, recording manifests, and journal quarantine counts. |
 | `coinbase_record` | Long OBSERVE recorder. Samples the live DOM order book/trades tape, writes fully-provenanced events, reconnects on transient tab/session failures, and writes `recordings/<symbol>-<UTC>/manifest.json`. No clicks, REST, SDK, sockets, or orders. |
 | `coinbase_recon` | One-shot deep recon → `recon/<symbol>-<ts>/` (`dom-map.json`, `network-map.json`, `behavioral.json`, `screenshots/`, `RECON_REPORT.md`). Never submits an order. |
 | `coinbase_market_stream` | Prefers sequenced WS frames when available. If unavailable, uses loud DOM fallback only, with degraded provenance and no sequence-gap claims. |
@@ -152,6 +153,7 @@ Check whether the journal is ready before running a backtest:
 
 ```powershell
 npm run dataset -- --symbol BTC-USD --horizonObservations 1
+npm run audit -- --symbol BTC-USD --horizonObservations 1
 ```
 
 The current readiness gate requires:
@@ -187,6 +189,10 @@ legacy rows with missing/unknown provenance. They are not retroactively fixed;
 dataset status marks them legacy/unusable. Keep them for audit if desired, but
 filter or discard them for future research.
 
+`npm run audit` writes `research/DATA_AUDIT_<UTC>.md` with the Stage 0 gate
+state, journal inventory, recording manifests, quarantine reasons, and the
+legacy/unusable-row migration note.
+
 ---
 
 ## Long OBSERVE Recording
@@ -217,6 +223,7 @@ quarantined provenance failures.
 npm run check   # syntax-checks every source + test file
 npm run smoke   # offline core invariants only by default
 npm run dataset -- --symbol BTC-USD --horizonObservations 1
+npm run audit -- --symbol BTC-USD --horizonObservations 1
 npm run backtest -- --symbol BTC-USD --horizonObservations 1
 ```
 

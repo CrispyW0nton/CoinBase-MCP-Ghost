@@ -16,6 +16,7 @@ import {
 } from "./coinbase.js";
 import { replayBacktest as coinbaseBacktest } from "./replay.js";
 import { datasetStatus as coinbaseDatasetStatus } from "./replay.js";
+import { dataAudit as coinbaseDataAudit } from "./audit.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
 
@@ -257,6 +258,28 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_data_audit",
+    description: "OFFLINE ONLY. Write a Stage 0 data audit report covering dataset readiness, legacy/unusable journal rows, recording manifests, and journal quarantine counts. No Chrome, Coinbase REST/SDK, sockets, credentials, or clicks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        journalDir: { type: "string", default: "journal" },
+        recordingsDir: { type: "string", default: "recordings" },
+        quarantineDir: { type: "string" },
+        files: { type: "array", items: { type: "string" } },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 },
+        outputDir: { type: "string", default: "research" },
+        writeReport: { type: "boolean", default: true }
+      }
+    }
+  },
+  {
     name: "coinbase_attach",
     description: "Attach (fail-closed) to an already-open, already-signed-in Coinbase Advanced Trade tab in the debug profile. Returns { attached, signedIn, tab, probeResults }. Never falls back to an unrelated tab.",
     inputSchema: {
@@ -412,6 +435,8 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbaseBacktest(args), null, 2));
     case "coinbase_dataset_status":
       return textResult(JSON.stringify(await coinbaseDatasetStatus(args), null, 2));
+    case "coinbase_data_audit":
+      return textResult(JSON.stringify(await coinbaseDataAudit(args), null, 2));
     case "coinbase_recon":
       return textResult(JSON.stringify(await coinbaseRecon(args), null, 2));
     case "coinbase_market_stream":
