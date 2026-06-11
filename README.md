@@ -114,7 +114,7 @@ Leave this window open while you use the MCP.
 | `coinbase_dataset_status` | **Offline only.** Reports journal inventory, paired observations, clean provenance percentage, effective breadth, and READY / NOT-READY for IC research. |
 | `coinbase_data_audit` | **Offline only.** Writes a Stage 0 audit report covering readiness, legacy/unusable rows, recording manifests, and journal quarantine counts. |
 | `coinbase_stage1_credentials_status` | **Offline only.** Reports whether the explicit Stage 1 keyed-WS approval phrase is present and whether proposed credential env vars are set. Never prints secret values, opens sockets, or validates credentials. |
-| `coinbase_stage1_feed_audit` | **Offline only.** Audits supplied Coinbase Advanced Trade WS frame payloads for `sequence_num` gaps, `source:"ws"` provenance, normalized market-data counts, and Stage-0 readiness on WS-quality data. Opens no socket and uses no credentials. |
+| `coinbase_stage1_feed_audit` | **Offline only.** Audits supplied Coinbase Advanced Trade WS frame payloads for `sequence_num` gaps, heartbeat/liveness evidence, `source:"ws"` provenance, normalized market-data counts, and Stage-0 readiness on WS-quality data. Opens no socket and uses no credentials. |
 | `coinbase_stage1_ingest_frames` | **Offline only.** Converts supplied clean WS frame payloads into strict-provenance JSONL journal rows plus a Stage 1 manifest. Refuses gapped/dirty windows by default. Opens no socket and uses no credentials. |
 | `coinbase_stage1_readiness` | **Offline only.** Reports the full Stage 1 gate: approval status, WS-only journal quality, gap count, Stage-0 readiness, and whether a completed live keyed WS manifest exists. |
 | `coinbase_stage1_subscription_plan` | **Offline only.** Builds and validates the future market-data subscribe-message plan: market endpoint only, one channel per message, heartbeats included, user/trading channels rejected, no JWT generation and no socket. |
@@ -189,6 +189,9 @@ then the resulting journal still needs enough paired observations and effective
 breadth to reach Stage-0 readiness.
 The parser accepts both `channel:"level2"` and the official Level2 receive
 example's `channel:"l2_data"` shape.
+The audit now also requires heartbeat frames with monotonic
+`heartbeat_counter` evidence so a quiet market cannot masquerade as a healthy
+connection.
 
 `stage1:ingest` writes the same supplied frame payloads into the append-only
 journal only after the WS-quality gate passes. It is useful for fixtures,

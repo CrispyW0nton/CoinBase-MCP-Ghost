@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.18.0 - Stage 1 heartbeat liveness audit
+
+Stage 1 feed audit now checks heartbeat evidence in supplied WS frame windows.
+
+- Counts heartbeat frames separately from normalized market events.
+- Requires heartbeat frames for the WS-quality gate.
+- Detects missing, gapped, or out-of-order `heartbeat_counter` values.
+- Keeps heartbeat frames out of the journal while preserving sequence-gap
+  detection across the full WS frame stream.
+- Added smoke coverage for clean heartbeat-backed fixtures, missing heartbeat
+  refusal, and heartbeat-counter gap refusal.
+- No credentialed client, JWT generation, credential read, socket, SDK call,
+  order placement, stop handling, or LIVE arming was added.
+
 ## 0.17.0 - Stage 1 offline subscription plan contract
 
 Stage 1 now has an offline subscribe-message planner for the future approved

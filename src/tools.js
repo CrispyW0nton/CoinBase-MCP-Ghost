@@ -321,7 +321,7 @@ export const tools = [
   },
   {
     name: "coinbase_stage1_feed_audit",
-    description: "OFFLINE ONLY. Audit supplied Coinbase Advanced Trade WS frame payloads for sequence_num gaps, source:\"ws\" provenance, normalized depth/trade/tick counts, and Stage-0 readiness on WS-quality data. Opens no socket, uses no credentials, and places no orders.",
+    description: "OFFLINE ONLY. Audit supplied Coinbase Advanced Trade WS frame payloads for sequence_num gaps, heartbeat/liveness evidence, source:\"ws\" provenance, normalized depth/trade/tick counts, and Stage-0 readiness on WS-quality data. Opens no socket, uses no credentials, and places no orders.",
     inputSchema: {
       type: "object",
       properties: {

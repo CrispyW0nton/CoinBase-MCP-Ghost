@@ -58,6 +58,15 @@ function check(name, fn) {
     .catch(err => { failures++; console.error(`  FAIL - ${name}: ${err.message}`); });
 }
 
+function stage1Heartbeat(sequenceNum, counter, timestamp) {
+  return {
+    channel: "heartbeats",
+    sequence_num: sequenceNum,
+    timestamp,
+    events: [{ current_time: timestamp, heartbeat_counter: String(counter) }]
+  };
+}
+
 // --- OFFLINE invariants (always run) --------------------------------------
 
 async function offlineSuite() {
@@ -484,6 +493,7 @@ async function offlineSuite() {
   await check("Stage 1 feed audit separates WS quality from Stage-0 quantity", async () => {
     const now = new Date().toISOString();
     const frames = [
+      stage1Heartbeat(9, 1, now),
       {
         channel: "l2_data",
         sequence_num: 10,
@@ -512,6 +522,9 @@ async function offlineSuite() {
     assert.equal(audit.keyedClientImplemented, false);
     assert.equal(audit.wsQualityGate.pass, true);
     assert.equal(audit.frames.gaps, 0);
+    assert.equal(audit.frames.heartbeatFrames, 1);
+    assert.equal(audit.frames.heartbeatCounterGaps, 0);
+    assert.equal(audit.counts.heartbeats, 1);
     assert.equal(audit.counts.l2, 2);
     assert.equal(audit.provenance.pctClean, 100);
     assert.equal(audit.stage0Readiness.verdict, "NOT-READY");
@@ -521,9 +534,10 @@ async function offlineSuite() {
   await check("Stage 1 feed audit fails on sequence gaps", async () => {
     const now = new Date().toISOString();
     const frames = [
+      stage1Heartbeat(20, 1, now),
       {
         channel: "level2",
-        sequence_num: 20,
+        sequence_num: 21,
         timestamp: now,
         events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
           { side: "bid", price_level: "100", new_quantity: "2", event_time: now }
@@ -531,7 +545,7 @@ async function offlineSuite() {
       },
       {
         channel: "level2",
-        sequence_num: 22,
+        sequence_num: 23,
         timestamp: now,
         events: [{ type: "update", product_id: "BTC-USD", updates: [
           { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
@@ -541,9 +555,49 @@ async function offlineSuite() {
     const audit = await stage1FeedAudit({ frames });
     assert.equal(audit.wsQualityGate.pass, false);
     assert.equal(audit.frames.gaps, 1);
-    assert.equal(audit.gapEvents[0].expectedSeq, 21);
-    assert.equal(audit.gapEvents[0].gotSeq, 22);
+    assert.equal(audit.gapEvents[0].expectedSeq, 22);
+    assert.equal(audit.gapEvents[0].gotSeq, 23);
     assert.match(audit.stage0Readiness.reasons.join("; "), /sequence gaps 1 > 0/);
+  });
+
+  await check("Stage 1 feed audit fails without heartbeat liveness evidence", async () => {
+    const now = new Date().toISOString();
+    const frames = [
+      {
+        channel: "level2",
+        sequence_num: 80,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      }
+    ];
+    const audit = await stage1FeedAudit({ frames });
+    assert.equal(audit.wsQualityGate.pass, false);
+    assert.equal(audit.frames.heartbeatFrames, 0);
+    assert.match(audit.wsQualityGate.reasons.join("; "), /no heartbeat frames supplied/);
+  });
+
+  await check("Stage 1 feed audit fails on heartbeat counter gaps", async () => {
+    const now = new Date().toISOString();
+    const frames = [
+      stage1Heartbeat(90, 1, now),
+      stage1Heartbeat(91, 3, now),
+      {
+        channel: "level2",
+        sequence_num: 92,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      }
+    ];
+    const audit = await stage1FeedAudit({ frames });
+    assert.equal(audit.wsQualityGate.pass, false);
+    assert.equal(audit.frames.heartbeatCounterGaps, 1);
+    assert.match(audit.wsQualityGate.reasons.join("; "), /heartbeat counter gaps 1 > 0/);
   });
 
   await check("Stage 1 ingest writes clean WS frames to strict journal", async () => {
@@ -552,6 +606,7 @@ async function offlineSuite() {
     const journalDir = path.join(baseDir, "journal");
     const outputRoot = path.join(baseDir, "recordings");
     const frames = [
+      stage1Heartbeat(29, 1, now),
       {
         channel: "level2",
         sequence_num: 30,
@@ -588,6 +643,7 @@ async function offlineSuite() {
     const now = new Date().toISOString();
     const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-refuse-"));
     const frames = [
+      stage1Heartbeat(39, 1, now),
       {
         channel: "level2",
         sequence_num: 40,
@@ -640,6 +696,7 @@ async function offlineSuite() {
     const journalDir = path.join(baseDir, "journal");
     const recordingsDir = path.join(baseDir, "recordings");
     const frames = [
+      stage1Heartbeat(49, 1, now),
       {
         channel: "level2",
         sequence_num: 50,
@@ -670,6 +727,7 @@ async function offlineSuite() {
     const now = new Date().toISOString();
     const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-recorder-"));
     async function* frameSource() {
+      yield stage1Heartbeat(59, 1, now);
       yield {
         channel: "level2",
         sequence_num: 60,
@@ -692,7 +750,7 @@ async function offlineSuite() {
       outputRoot: path.join(baseDir, "recordings")
     });
     assert.equal(result.ingested, true);
-    assert.equal(result.framesRead, 2);
+    assert.equal(result.framesRead, 3);
     assert.equal(result.appended.written, 3);
     const manifest = JSON.parse(fs.readFileSync(result.manifestPath, "utf8"));
     assert.equal(manifest.offlineOnly, true);
@@ -704,6 +762,7 @@ async function offlineSuite() {
     const now = new Date().toISOString();
     const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-contract-"));
     async function* frameSource() {
+      yield stage1Heartbeat(69, 1, now);
       yield {
         channel: "level2",
         sequence_num: 70,

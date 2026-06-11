@@ -70,11 +70,15 @@ export function parseStage1Frames({ rawFrames = [], symbol = DEFAULT_SYMBOL } = 
     unsequenced: 0,
     duplicateOrReplay: 0,
     outOfOrder: 0,
-    gaps: 0
+    gaps: 0,
+    heartbeatFrames: 0,
+    heartbeatCounterMissing: 0,
+    heartbeatCounterGaps: 0,
+    heartbeatCounterOutOfOrder: 0
   };
   const events = [];
   const gapEvents = [];
-  const counts = { ticks: 0, l2: 0, trades: 0, candles: 0, gaps: 0 };
+  const counts = { ticks: 0, l2: 0, trades: 0, candles: 0, heartbeats: 0, gaps: 0 };
   const provenance = {
     totalEvents: 0,
     cleanEvents: 0,
@@ -85,6 +89,7 @@ export function parseStage1Frames({ rawFrames = [], symbol = DEFAULT_SYMBOL } = 
     rejectedReasons: {}
   };
   let lastSeq = null;
+  let lastHeartbeatCounter = null;
 
   for (const raw of rawFrames) {
     let msg;
@@ -94,6 +99,24 @@ export function parseStage1Frames({ rawFrames = [], symbol = DEFAULT_SYMBOL } = 
     } catch {
       stats.parseErrors++;
       continue;
+    }
+
+    if (msg.channel === "heartbeats") {
+      stats.heartbeatFrames++;
+      counts.heartbeats++;
+      const counter = heartbeatCounter(msg);
+      if (counter === null) {
+        stats.heartbeatCounterMissing++;
+      } else {
+        if (lastHeartbeatCounter !== null && counter > lastHeartbeatCounter + 1) {
+          stats.heartbeatCounterGaps += counter - lastHeartbeatCounter - 1;
+        } else if (lastHeartbeatCounter !== null && counter <= lastHeartbeatCounter) {
+          stats.heartbeatCounterOutOfOrder++;
+        }
+        if (lastHeartbeatCounter === null || counter > lastHeartbeatCounter) {
+          lastHeartbeatCounter = counter;
+        }
+      }
     }
 
     const { events: parsedEvents, sequenceNum, channel } = parseCoinbaseFrame(msg);
@@ -177,6 +200,10 @@ function wsQualityVerdict({ stats, provenance, counts }) {
   if (stats.unsequenced > 0) reasons.push(`unsequenced frames ${stats.unsequenced} > 0`);
   if (stats.gaps > 0) reasons.push(`sequence gaps ${stats.gaps} > 0`);
   if (stats.outOfOrder > 0) reasons.push(`out-of-order frames ${stats.outOfOrder} > 0`);
+  if (stats.heartbeatFrames === 0) reasons.push("no heartbeat frames supplied for liveness evidence");
+  if (stats.heartbeatCounterMissing > 0) reasons.push(`heartbeat frames missing counters ${stats.heartbeatCounterMissing} > 0`);
+  if (stats.heartbeatCounterGaps > 0) reasons.push(`heartbeat counter gaps ${stats.heartbeatCounterGaps} > 0`);
+  if (stats.heartbeatCounterOutOfOrder > 0) reasons.push(`heartbeat counters out of order ${stats.heartbeatCounterOutOfOrder} > 0`);
   if (provenance.totalEvents === 0) reasons.push("no normalized market events emitted");
   if (provenance.totalEvents !== provenance.cleanEvents) {
     reasons.push(`clean WS provenance ${provenance.cleanEvents}/${provenance.totalEvents}`);
@@ -199,6 +226,10 @@ function stage0ReadinessFromReplay({ replay, stats, provenance }) {
   if (testObservations < MIN_TEST_OBSERVATIONS) reasons.push(`test observations ${testObservations} < ${MIN_TEST_OBSERVATIONS}`);
   if (stats.gaps > 0) reasons.push(`sequence gaps ${stats.gaps} > 0`);
   if (stats.unsequenced > 0) reasons.push(`unsequenced frames ${stats.unsequenced} > 0`);
+  if (stats.heartbeatFrames === 0) reasons.push("no heartbeat frames supplied for liveness evidence");
+  if (stats.heartbeatCounterMissing > 0) reasons.push(`heartbeat frames missing counters ${stats.heartbeatCounterMissing} > 0`);
+  if (stats.heartbeatCounterGaps > 0) reasons.push(`heartbeat counter gaps ${stats.heartbeatCounterGaps} > 0`);
+  if (stats.heartbeatCounterOutOfOrder > 0) reasons.push(`heartbeat counters out of order ${stats.heartbeatCounterOutOfOrder} > 0`);
   if (provenance.totalEvents !== provenance.cleanEvents) {
     reasons.push(`unclean provenance events ${provenance.totalEvents - provenance.cleanEvents} > 0`);
   }
@@ -235,6 +266,8 @@ async function writeStage1FeedAuditReport(result, { outputDir }) {
     `- Parse errors: ${result.frames.parseErrors}`,
     `- Unsequenced frames: ${result.frames.unsequenced}`,
     `- Sequence gaps: ${result.frames.gaps}`,
+    `- Heartbeat frames: ${result.frames.heartbeatFrames}`,
+    `- Heartbeat counter gaps: ${result.frames.heartbeatCounterGaps}`,
     `- L2 updates: ${result.counts.l2}`,
     `- Ticks: ${result.counts.ticks}`,
     `- Trades: ${result.counts.trades}`,
@@ -253,6 +286,17 @@ async function writeStage1FeedAuditReport(result, { outputDir }) {
   ];
   await fs.writeFile(reportPath, lines.join("\n") + "\n", "utf8");
   return reportPath;
+}
+
+function heartbeatCounter(msg) {
+  if (!Array.isArray(msg?.events)) return null;
+  for (const event of msg.events) {
+    const raw = event?.heartbeat_counter;
+    if (raw === undefined || raw === null || raw === "") continue;
+    const value = Number(raw);
+    if (Number.isSafeInteger(value)) return value;
+  }
+  return null;
 }
 
 function parseArgs(argv = process.argv.slice(2)) {

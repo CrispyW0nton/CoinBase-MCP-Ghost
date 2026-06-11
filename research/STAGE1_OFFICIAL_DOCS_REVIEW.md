@@ -57,7 +57,9 @@ socket, JWT generation, or Coinbase request was added by this review.
     within 5 seconds.
 14. Coinbase warns that some channels close after 60-90 seconds without
     updates and suggests heartbeats alongside other subscriptions. The future
-    client should include heartbeats for liveness evidence.
+    client should include heartbeats for liveness evidence. The audit treats
+    heartbeat frames and monotonic `heartbeat_counter` values as required
+    evidence for the WS-quality gate.
 15. The offline subscription-plan contract must keep these rules explicit:
     market-data endpoint only, one channel per subscribe message, product IDs
     on market-data channels, heartbeats for liveness, and no user/futures
