@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.14.0 - Stage 1 keyed WS entrypoint stub
+
+Stage 1 now has an explicit fail-closed future live-feed entrypoint.
+
+- Added `createStage1KeyedWsFrameSource`, which calls
+  `requireStage1KeyedWsApproval` before doing anything else.
+- Without approval it throws `STAGE1_KEYED_WS_APPROVAL_REQUIRED`.
+- With approval it still throws `STAGE1_KEYED_WS_CLIENT_NOT_IMPLEMENTED`; no
+  credential material is read, no socket is opened, and no client is built in
+  this pass.
+- Added smoke coverage for both refusal paths and secret-free errors.
+
 ## 0.13.0 - Stage 1 keyed-feed approval guard
 
 Stage 1 now has a reusable fail-closed approval guard for any future keyed WS

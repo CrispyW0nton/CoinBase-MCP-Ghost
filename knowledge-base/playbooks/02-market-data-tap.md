@@ -78,3 +78,7 @@ keyed client until the approval phrase is present.
     reading credential material or opening a socket. Approval authorizes market
     data only; it never authorizes REST trading, orders, stops, LIVE arming, or
     credential logging.
+17. `createStage1KeyedWsFrameSource` is the current fail-closed placeholder for
+    that future connector. It must keep throwing
+    `STAGE1_KEYED_WS_CLIENT_NOT_IMPLEMENTED` until human approval and official
+    Coinbase docs review happen in the implementation pass.

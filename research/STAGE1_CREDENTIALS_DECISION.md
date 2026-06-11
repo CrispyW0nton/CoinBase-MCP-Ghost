@@ -61,6 +61,11 @@ contract used by fixtures.
 entrypoint. It must pass before credential material is read or a Coinbase WS
 socket is opened. Approval remains scoped to market data only.
 
+`createStage1KeyedWsFrameSource` is present as a fail-closed placeholder. It
+checks approval first, then throws `STAGE1_KEYED_WS_CLIENT_NOT_IMPLEMENTED` so
+this repository has a named future integration point without implementing the
+credentialed client early.
+
 ## Proposed credential env names
 
 These names are placeholders for the next implementation pass and are not used
@@ -116,9 +121,11 @@ It does not approve:
    actually used.
 10. Call `requireStage1KeyedWsApproval` before reading credential material or
     opening any Coinbase WS socket.
-11. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
+11. Replace the fail-closed `createStage1KeyedWsFrameSource` placeholder only
+    after approval and official Coinbase docs review.
+12. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
    deflated Sharpe, and realistic costs before any execution research.
-12. Leave LIVE trading disconnected until later risk, kill-switch, and human
+13. Leave LIVE trading disconnected until later risk, kill-switch, and human
    approval gates are passed.
 
 ## Knowledge-base rationale

@@ -208,6 +208,12 @@ manifests. The guard is fail-closed and its approved scope is market data only;
 it still forbids REST trading, order placement, stops, LIVE arming, DOM
 execution, credential logging, and kill-switch bypass.
 
+`createStage1KeyedWsFrameSource` is currently a deliberately inert entrypoint:
+it checks the approval guard, then throws `STAGE1_KEYED_WS_CLIENT_NOT_IMPLEMENTED`.
+That gives later work a named integration point without quietly adding
+credential or network behavior before human approval and current Coinbase docs
+review.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to

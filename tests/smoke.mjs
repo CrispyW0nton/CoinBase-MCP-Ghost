@@ -42,6 +42,10 @@ import {
 } from "../src/stage1-approval.js";
 import { stage1FeedAudit } from "../src/stage1-feed-audit.js";
 import { stage1IngestFrames } from "../src/stage1-ingest.js";
+import {
+  createStage1KeyedWsFrameSource,
+  STAGE1_KEYED_WS_NOT_IMPLEMENTED
+} from "../src/stage1-keyed-ws.js";
 import { recordStage1FrameSource } from "../src/stage1-recorder.js";
 import { stage1Readiness } from "../src/stage1-readiness.js";
 
@@ -370,6 +374,44 @@ async function offlineSuite() {
     assert.ok(result.allowedScope.some(item => /WebSocket market-data/.test(item)));
     assert.ok(result.forbiddenScope.includes("order placement"));
     assert.ok(result.forbiddenScope.includes("LIVE arming"));
+  });
+
+  await check("Stage 1 keyed WS entrypoint refuses before approval", () => {
+    const env = {
+      [STAGE1_APPROVAL_ENV]: "not-approved",
+      [STAGE1_CREDENTIAL_ENVS[1]]: "secret-test-material"
+    };
+    assert.throws(
+      () => createStage1KeyedWsFrameSource({ env }),
+      err => {
+        const serialized = JSON.stringify(err, Object.getOwnPropertyNames(err));
+        assert.equal(err.code, "STAGE1_KEYED_WS_APPROVAL_REQUIRED");
+        assert.equal(err.networkTouched, false);
+        assert.doesNotMatch(serialized, /secret-test-material/);
+        return true;
+      }
+    );
+  });
+
+  await check("Stage 1 keyed WS entrypoint remains unimplemented after approval", () => {
+    const env = {
+      [STAGE1_APPROVAL_ENV]: STAGE1_APPROVAL_PHRASE,
+      [STAGE1_CREDENTIAL_ENVS[1]]: "secret-test-material"
+    };
+    assert.throws(
+      () => createStage1KeyedWsFrameSource({ env, productIds: ["BTC-USD"] }),
+      err => {
+        const serialized = JSON.stringify(err, Object.getOwnPropertyNames(err));
+        assert.equal(err.code, STAGE1_KEYED_WS_NOT_IMPLEMENTED);
+        assert.equal(err.approvalChecked, true);
+        assert.equal(err.credentialMaterialRead, false);
+        assert.equal(err.networkTouched, false);
+        assert.equal(err.keyedClientImplemented, false);
+        assert.doesNotMatch(serialized, /secret-test-material/);
+        assert.ok(err.forbiddenScope.includes("order placement"));
+        return true;
+      }
+    );
   });
 
   await check("Stage 1 feed audit separates WS quality from Stage-0 quantity", async () => {

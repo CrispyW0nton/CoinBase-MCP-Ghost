@@ -190,6 +190,11 @@ or authenticates a Coinbase WS connection. The guard throws
 `STAGE1_KEYED_WS_APPROVAL_REQUIRED` unless the approval phrase is present, and
 the approved scope remains market data only.
 
+`createStage1KeyedWsFrameSource` exists only as a fail-closed future entrypoint.
+It checks approval first, then still throws
+`STAGE1_KEYED_WS_CLIENT_NOT_IMPLEMENTED`; this pass does not read credential
+material or open a Coinbase socket.
+
 ---
 
 ## Offline IC research
