@@ -156,7 +156,8 @@ It does not approve:
     actually used. The manifest must also include nonzero frames and journal
     writes, zero parse/unsequenced/duplicate/out-of-order frames, zero journal
     rejects, heartbeat evidence, a valid sequence range, and 100% clean
-    provenance.
+    provenance. It must preserve a secret-free passed
+    `coinbase_stage1_feed_preflight` snapshot as evidence.
 13. Call `requireStage1KeyedWsApproval` before reading credential material or
     opening any Coinbase WS socket.
 14. Replace the fail-closed `createStage1KeyedWsFrameSource` placeholder only

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.24.0 - Stage 1 preflight evidence gate
+
+Stage 1 readiness now requires future live keyed WS manifests to preserve the
+approval-gated feed preflight result.
+
+- Live manifests must include `evidence.preflight` from
+  `coinbase_stage1_feed_preflight`.
+- The preserved preflight must show approval, credential-shape validation, and
+  subscription-plan validation passed.
+- The preserved preflight must remain offline/no-network/no-JWT/no-keyed-client
+  and assert secret-free output.
+- Added smoke coverage proving clean live-flagged manifests without preflight
+  evidence are rejected.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.23.0 - Stage 1 live manifest evidence hardening
 
 Stage 1 readiness now verifies live manifest internals before accepting future

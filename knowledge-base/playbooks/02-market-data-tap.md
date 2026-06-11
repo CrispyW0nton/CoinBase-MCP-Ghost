@@ -90,7 +90,8 @@ keyed client until the approval phrase is present.
     ingests are useful tests but are not live-feed evidence. Live manifests must
     carry frame evidence: nonzero frames and journal writes, zero parse,
     unsequenced, duplicate/replayed, out-of-order, and rejected rows, heartbeat
-    evidence, sequence range, and 100% clean provenance.
+    evidence, sequence range, 100% clean provenance, and a secret-free passed
+    `coinbase_stage1_feed_preflight` snapshot.
 18. Future approved keyed WS code should feed frames into
     `recordStage1FrameSource` so live capture uses the same audit, ingest,
     manifest, and readiness path as fixtures. Never set live evidence flags

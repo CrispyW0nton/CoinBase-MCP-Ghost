@@ -108,6 +108,7 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
       journalRejected: manifest.counts?.journalRejected ?? manifest.journalStats?.rejected ?? null,
       frameEvidence: manifest.frameEvidence || null,
       provenance: manifest.provenance || null,
+      evidence: manifest.evidence || null,
       startedAt: manifest.startedAt || null,
       endedAt: manifest.endedAt || null,
       journalPath: manifest.journalPath || null
@@ -191,6 +192,21 @@ function validateStage1LiveManifestEvidence(manifest) {
   } else {
     if (provenance.totalEvents <= 0) reasons.push("manifest provenance has no events");
     if (provenance.pctClean !== 100) reasons.push(`manifest provenance pctClean ${provenance.pctClean ?? "unknown"} is not 100`);
+  }
+
+  const preflight = manifest.evidence?.preflight;
+  if (!preflight || typeof preflight !== "object") {
+    reasons.push("manifest preflight evidence is missing");
+  } else {
+    if (preflight.preflight?.pass !== true) reasons.push("manifest preflight did not pass");
+    if (preflight.approval?.approved !== true) reasons.push("manifest preflight approval is not approved");
+    if (preflight.credentials?.pass !== true) reasons.push("manifest preflight credentials did not pass");
+    if (preflight.subscriptionPlan?.validation?.pass !== true) reasons.push("manifest preflight subscription plan did not pass");
+    if (preflight.offlineOnly !== true) reasons.push("manifest preflight offlineOnly is not true");
+    if (preflight.networkTouched !== false) reasons.push("manifest preflight networkTouched is not false");
+    if (preflight.keyedClientImplemented !== false) reasons.push("manifest preflight keyedClientImplemented is not false");
+    if (preflight.jwtGenerated !== false) reasons.push("manifest preflight jwtGenerated is not false");
+    if (preflight.safety?.noCredentialValuesReturned !== true) reasons.push("manifest preflight does not assert secret-free output");
   }
 
   return {

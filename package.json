@@ -1,6 +1,6 @@
 {
   "name": "coinbase-mcp-ghost",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "description": "A local read-only MCP server that attaches (as a 'ghost') to an already-signed-in Coinbase Advanced Trade tab over the Chrome DevTools Protocol for market-data and portfolio reconnaissance. OBSERVE_ONLY by default — no trading, no API keys, no auth flow.",
   "type": "module",
   "bin": {

@@ -207,7 +207,9 @@ prove live keyed WS flow rather than offline fixture ingest.
 Live evidence is not accepted from flags alone: the manifest must also show
 nonzero frames and journal writes, zero parse/unsequenced/duplicate/out-of-order
 frames, zero journal rejects, heartbeat frame/counter evidence, a valid
-`sequence_num` range, and 100% clean provenance.
+`sequence_num` range, 100% clean provenance, and secret-free evidence that
+`coinbase_stage1_feed_preflight` passed before the live connector opened the
+market-data socket.
 
 `recordStage1FrameSource` is the reusable recorder core for the future approved
 client. It accepts an async iterable of Coinbase WS frame payloads and routes
