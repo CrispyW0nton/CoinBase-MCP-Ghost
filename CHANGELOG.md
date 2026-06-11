@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.6.0 - Pass 5 data-integrity recording gate
+
+Pass 5 makes future IC research possible by fixing the recording pipeline
+rather than trying to prove an edge.
+
+### Provenance integrity
+
+- Added strict journal provenance validation. Events missing `source`, `ageMs`,
+  `hasSequence`, `confidence`, `degraded`, or required `degradedReason` are
+  rejected from the main journal and written to `journal/_quarantine/` with a
+  reason.
+- Threaded journal rejection counters through market streaming and recording
+  results.
+- Root cause for old unknown rows: legacy Pass 2 journal entries were written
+  before provenance fields were added. They are now reported as
+  legacy/unusable; the code does not retro-fabricate provenance.
+- Added smoke coverage for 0% unknown provenance on emitted batches and journal
+  rejection/quarantine of malformed events.
+
+### Recording
+
+- Added `coinbase_record`, a long OBSERVE recorder that samples the DOM order
+  book/trades tape, writes fully-provenanced DOM events/signals, handles
+  reconnects, and writes `recordings/<symbol>-<UTC>/manifest.json` with
+  health, counts, provenance breakdown, disconnects, and journal stats.
+- Added `recordings/` to `.gitignore` as runtime output.
+
+### Dataset readiness
+
+- Added `coinbase_dataset_status` and `npm run dataset`.
+- Backtests now require 2,000 paired observations, 2,000 effective independent
+  observations after autocorrelation discounting, 600 chronological test
+  observations, and 0 legacy/missing-provenance rows before issuing IC metrics.
+- Below the threshold, `coinbase_backtest` suppresses IC/t-stat/Sharpe and
+  returns `Refused - insufficient data, record more`.
+
 ## 0.5.0 - Pass 4 offline IC replay research
 
 Pass 4 adds a pure offline research harness for the existing order-book

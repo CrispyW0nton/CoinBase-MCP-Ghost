@@ -26,6 +26,23 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { serializeEvent } from "./schema.js";
 
+const ALLOWED_SOURCES = new Set(["ws", "sse", "poll", "dom"]);
+const ALLOWED_CONFIDENCE = new Set(["high", "medium", "low"]);
+
+export function validateJournalProvenance(evt) {
+  const missing = [];
+  if (!evt || typeof evt !== "object") return { ok: false, reason: "event is not an object", missing: ["event"] };
+  if (!evt.source || !ALLOWED_SOURCES.has(evt.source)) missing.push("source");
+  if (!Number.isFinite(Number(evt.ageMs))) missing.push("ageMs");
+  if (typeof evt.hasSequence !== "boolean") missing.push("hasSequence");
+  if (!evt.confidence || !ALLOWED_CONFIDENCE.has(evt.confidence)) missing.push("confidence");
+  if (typeof evt.degraded !== "boolean") missing.push("degraded");
+  if (evt.degraded === true && !evt.degradedReason) missing.push("degradedReason");
+  return missing.length
+    ? { ok: false, reason: `missing or invalid provenance fields: ${missing.join(", ")}`, missing }
+    : { ok: true, reason: null, missing: [] };
+}
+
 export class RingBuffer {
   constructor(capacity = 50_000) {
     this.capacity = capacity;
@@ -72,11 +89,17 @@ export class RingBuffer {
 
 export class JsonlJournal {
   // baseDir defaults to ./journal at the process cwd.
-  constructor({ baseDir = path.join(process.cwd(), "journal"), symbol = "BTC-USD" } = {}) {
+  constructor({ baseDir = path.join(process.cwd(), "journal"), symbol = "BTC-USD", strictProvenance = true } = {}) {
     this.baseDir = baseDir;
     this.symbol = symbol;
+    this.strictProvenance = strictProvenance;
     this.stream = null;
+    this.quarantineStream = null;
     this.currentPath = null;
+    this.currentQuarantinePath = null;
+    this.written = 0;
+    this.rejected = 0;
+    this.rejectedByReason = {};
   }
 
   #pathForToday() {
@@ -93,17 +116,55 @@ export class JsonlJournal {
     this.currentPath = target;
   }
 
+  #quarantinePathForToday() {
+    const date = new Date().toISOString().slice(0, 10);
+    return path.join(this.baseDir, "_quarantine", `${date}.jsonl`);
+  }
+
+  #ensureQuarantineStream() {
+    const target = this.#quarantinePathForToday();
+    if (this.quarantineStream && this.currentQuarantinePath === target) return;
+    if (this.quarantineStream) this.quarantineStream.end();
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    this.quarantineStream = fs.createWriteStream(target, { flags: "a" });
+    this.currentQuarantinePath = target;
+  }
+
   append(evt) {
+    const serialized = serializeEvent(evt);
+    const validation = validateJournalProvenance(serialized);
+    if (this.strictProvenance && !validation.ok) {
+      this.rejected++;
+      this.rejectedByReason[validation.reason] = (this.rejectedByReason[validation.reason] || 0) + 1;
+      this.#ensureQuarantineStream();
+      this.quarantineStream.write(JSON.stringify({
+        rejectedAt: new Date().toISOString(),
+        reason: validation.reason,
+        missing: validation.missing,
+        event: serialized
+      }) + "\n");
+      return {
+        written: false,
+        rejected: true,
+        reason: validation.reason,
+        quarantinePath: this.currentQuarantinePath
+      };
+    }
     this.#ensureStream();
-    const line = JSON.stringify(serializeEvent(evt));
+    const line = JSON.stringify(serialized);
     this.stream.write(line + "\n");
-    return this.currentPath;
+    this.written++;
+    return { written: true, rejected: false, path: this.currentPath };
   }
 
   async close() {
     if (this.stream) {
       await new Promise(resolve => this.stream.end(resolve));
       this.stream = null;
+    }
+    if (this.quarantineStream) {
+      await new Promise(resolve => this.quarantineStream.end(resolve));
+      this.quarantineStream = null;
     }
   }
 
@@ -120,5 +181,15 @@ export class JsonlJournal {
 
   path() {
     return this.currentPath ?? this.#pathForToday();
+  }
+
+  stats() {
+    return {
+      written: this.written,
+      rejected: this.rejected,
+      rejectedByReason: this.rejectedByReason,
+      path: this.path(),
+      quarantinePath: this.currentQuarantinePath ?? this.#quarantinePathForToday()
+    };
   }
 }

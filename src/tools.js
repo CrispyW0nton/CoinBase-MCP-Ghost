@@ -5,6 +5,7 @@ import {
   attach as coinbaseAttach,
   recon as coinbaseRecon,
   marketStream as coinbaseMarketStream,
+  record as coinbaseRecord,
   snapshotState as coinbaseSnapshotState,
   portfolioSnapshot as coinbasePortfolioSnapshot,
   placeOrder as coinbasePlaceOrder,
@@ -14,6 +15,7 @@ import {
   diagnoseTransport as coinbaseDiagnoseTransport
 } from "./coinbase.js";
 import { replayBacktest as coinbaseBacktest } from "./replay.js";
+import { datasetStatus as coinbaseDatasetStatus } from "./replay.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
 
@@ -237,6 +239,24 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_dataset_status",
+    description: "OFFLINE ONLY. Inspect journal JSONL readiness for IC research: events, paired observations, provenance completeness, date span, effective breadth, and READY/NOT-READY verdict. No Chrome, Coinbase REST/SDK, sockets, credentials, or clicks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        journalDir: { type: "string", default: "journal" },
+        files: { type: "array", items: { type: "string" } },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 }
+      }
+    }
+  },
+  {
     name: "coinbase_attach",
     description: "Attach (fail-closed) to an already-open, already-signed-in Coinbase Advanced Trade tab in the debug profile. Returns { attached, signedIn, tab, probeResults }. Never falls back to an unrelated tab.",
     inputSchema: {
@@ -313,6 +333,21 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_record",
+    description: "Long OBSERVE recording session. Samples the live Coinbase DOM order book/trades tape, writes fully-provenanced DOM events to the append-only journal, handles reconnects, and writes recordings/<symbol>-<UTC>/manifest.json. No REST/SDK/sockets/clicks/orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        debugUrl: { type: "string", default: DEFAULT_DEBUG_URL },
+        urlContains: { anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }], default: ["coinbase.com/advanced-trade", "coinbase.com/advanced-portfolio"] },
+        durationMs: { type: "number", default: 3600000 },
+        sampleIntervalMs: { type: "number", default: 1000 },
+        healthIntervalMs: { type: "number", default: 30000 },
+        outputRoot: { type: "string", default: "recordings" }
+      }
+    }
+  },
+  {
     name: "coinbase_paper_ledger",
     description: "Read the in-memory PAPER trading ledger: running position, realized/unrealized P&L, recent simulated fills, and advisory half-Kelly sizing from measured PAPER outcomes. Read-only.",
     inputSchema: {
@@ -375,10 +410,14 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbaseDiagnoseTransport(args), null, 2));
     case "coinbase_backtest":
       return textResult(JSON.stringify(await coinbaseBacktest(args), null, 2));
+    case "coinbase_dataset_status":
+      return textResult(JSON.stringify(await coinbaseDatasetStatus(args), null, 2));
     case "coinbase_recon":
       return textResult(JSON.stringify(await coinbaseRecon(args), null, 2));
     case "coinbase_market_stream":
       return textResult(JSON.stringify(await coinbaseMarketStream(args), null, 2));
+    case "coinbase_record":
+      return textResult(JSON.stringify(await coinbaseRecord(args), null, 2));
     case "coinbase_snapshot_state":
       return textResult(JSON.stringify(await coinbaseSnapshotState(args), null, 2));
     case "coinbase_portfolio_snapshot":

@@ -19,8 +19,11 @@ import { dec, Decimal, serializeEvent } from "./schema.js";
 import { OrderBookImbalanceSignal, SOURCES } from "./signal.js";
 
 const DEFAULT_SYMBOL = "BTC-USD";
-const MIN_MEANINGFUL_TEST_OBS = 30;
-const MIN_MEANINGFUL_TOTAL_OBS = 100;
+export const MIN_EFFECTIVE_BREADTH = 2000;
+export const MIN_TEST_OBSERVATIONS = 600;
+export const MIN_PAIRED_OBSERVATIONS = 2000;
+const VALID_SOURCES = new Set(["ws", "sse", "poll", "dom"]);
+const VALID_CONFIDENCE = new Set(["high", "medium", "low"]);
 
 function toIso(ts) {
   if (ts === null || ts === undefined) return null;
@@ -61,17 +64,35 @@ async function walkJsonl(dir) {
 }
 
 function provenance(raw) {
-  const source = raw.source ?? raw.provenance?.source ?? SOURCES.UNKNOWN;
-  const hasSequence = raw.hasSequence === true || (raw.hasSequence === undefined && raw.seq !== null && raw.seq !== undefined);
-  const confidence = raw.confidence ?? raw.provenance?.confidence ?? (source === SOURCES.WS && hasSequence ? "high" : "low");
-  const degraded = raw.degraded ?? raw.provenance?.degraded ?? (confidence !== "high");
+  const sourceRaw = raw.source ?? raw.provenance?.source;
+  const ageRaw = raw.ageMs ?? raw.provenance?.ageMs;
+  const hasSequenceRaw = raw.hasSequence ?? raw.provenance?.hasSequence;
+  const confidenceRaw = raw.confidence ?? raw.provenance?.confidence;
+  const degradedRaw = raw.degraded ?? raw.provenance?.degraded;
+  const source = VALID_SOURCES.has(sourceRaw) ? sourceRaw : SOURCES.UNKNOWN;
+  const hasSequence = typeof hasSequenceRaw === "boolean"
+    ? hasSequenceRaw
+    : (raw.seq !== null && raw.seq !== undefined);
+  const confidence = VALID_CONFIDENCE.has(confidenceRaw)
+    ? confidenceRaw
+    : (source === SOURCES.WS && hasSequence ? "high" : "low");
+  const degraded = typeof degradedRaw === "boolean" ? degradedRaw : (confidence !== "high");
+  const missing = [];
+  if (!VALID_SOURCES.has(sourceRaw)) missing.push("source");
+  if (!Number.isFinite(Number(ageRaw))) missing.push("ageMs");
+  if (typeof hasSequenceRaw !== "boolean") missing.push("hasSequence");
+  if (!VALID_CONFIDENCE.has(confidenceRaw)) missing.push("confidence");
+  if (typeof degradedRaw !== "boolean") missing.push("degraded");
+  if (degraded === true && !(raw.degradedReason ?? raw.provenance?.degradedReason)) missing.push("degradedReason");
   return {
     source,
-    ageMs: raw.ageMs ?? raw.provenance?.ageMs ?? null,
+    ageMs: Number.isFinite(Number(ageRaw)) ? Number(ageRaw) : null,
     hasSequence,
     confidence,
     degraded,
-    degradedReason: raw.degradedReason ?? raw.provenance?.degradedReason ?? (degraded ? `${source} source is not exchange-sequenced or lacks provenance` : null)
+    degradedReason: raw.degradedReason ?? raw.provenance?.degradedReason ?? (degraded ? `${source} source is not exchange-sequenced or lacks provenance` : null),
+    provenanceComplete: missing.length === 0,
+    missingProvenanceFields: missing
   };
 }
 
@@ -178,7 +199,10 @@ function emptyInventory() {
     minTs: null,
     maxTs: null,
     pctDom: 0,
-    pctDegraded: 0
+    pctDegraded: 0,
+    pctCleanProvenance: 0,
+    missingProvenance: 0,
+    legacyUnusable: 0
   };
 }
 
@@ -192,7 +216,10 @@ function emptyFileInventory(file) {
     byConfidence: {},
     degraded: { true: 0, false: 0 },
     minTs: null,
-    maxTs: null
+    maxTs: null,
+    pctCleanProvenance: 0,
+    missingProvenance: 0,
+    legacyUnusable: 0
   };
 }
 
@@ -202,6 +229,8 @@ function addInventory(inv, evt) {
   inv.bySource[evt.source] = (inv.bySource[evt.source] || 0) + 1;
   inv.byConfidence[evt.confidence] = (inv.byConfidence[evt.confidence] || 0) + 1;
   inv.degraded[evt.degraded === true ? "true" : "false"]++;
+  if (evt.provenanceComplete !== true) inv.missingProvenance++;
+  if (evt.source === SOURCES.UNKNOWN || evt.provenanceComplete !== true) inv.legacyUnusable++;
   inv.minTs = inv.minTs === null || evt.ts < inv.minTs ? evt.ts : inv.minTs;
   inv.maxTs = inv.maxTs === null || evt.ts > inv.maxTs ? evt.ts : inv.maxTs;
 }
@@ -211,6 +240,7 @@ function finalizeInventory(inv) {
   inv.maxTsIso = toIso(inv.maxTs);
   inv.pctDom = inv.events ? pct(inv.bySource.dom || 0, inv.events) : 0;
   inv.pctDegraded = inv.events ? pct(inv.degraded.true || 0, inv.events) : 0;
+  inv.pctCleanProvenance = inv.events ? pct(inv.events - inv.missingProvenance, inv.events) : 0;
   inv.dataQualityCeiling = dataQualityCeiling(inv);
 }
 
@@ -219,7 +249,8 @@ function dataQualityCeiling(inv) {
   const unknown = inv.bySource.unknown || 0;
   const degraded = inv.degraded.true || 0;
   if (inv.events === 0) return "no usable journal events";
-  if (low + unknown + degraded > 0) return "low-confidence / DOM-sourced or missing-provenance";
+  if (unknown + inv.missingProvenance > 0) return "missing-provenance legacy data";
+  if (low + degraded > 0) return "low-confidence / DOM-sourced";
   return "sequenced/high-confidence";
 }
 
@@ -318,6 +349,25 @@ export function replayEvents(events, {
   };
 }
 
+function suppressedMetricSet(observations) {
+  return {
+    observations,
+    ic: null,
+    standardError: null,
+    tStat: null,
+    breadth: null,
+    lag1Autocorr: null,
+    autocorrelationFlag: null,
+    strategySharpePerObservation: null,
+    skewness: null,
+    kurtosis: null,
+    deflatedSharpe: null,
+    probabilityFalsePositive: null,
+    parameterTrials: null,
+    suppressed: true
+  };
+}
+
 function tickMid(evt) {
   if (evt.bidPx && evt.askPx) return evt.bidPx.plus(evt.askPx).div(2);
   return evt.lastPx ?? evt.bidPx ?? evt.askPx ?? null;
@@ -391,10 +441,10 @@ function metricSet(rows, trials) {
 }
 
 function verdict({ total, test, rows }) {
-  if (rows.length < MIN_MEANINGFUL_TOTAL_OBS || test.observations < MIN_MEANINGFUL_TEST_OBS) {
+  if (rows.length < MIN_PAIRED_OBSERVATIONS || test.observations < MIN_TEST_OBSERVATIONS) {
     return {
       label: "Inconclusive - insufficient data",
-      reason: `Need at least ${MIN_MEANINGFUL_TOTAL_OBS} paired observations with ${MIN_MEANINGFUL_TEST_OBS} out-of-sample; got ${rows.length} paired and ${test.observations} test.`
+      reason: `Need at least ${MIN_PAIRED_OBSERVATIONS} paired observations with ${MIN_TEST_OBSERVATIONS} out-of-sample; got ${rows.length} paired and ${test.observations} test.`
     };
   }
   if (!Number.isFinite(test.tStat) || Math.abs(test.tStat) < 2) {
@@ -528,11 +578,13 @@ export async function replayBacktest(args = {}) {
   } = args;
   const { events, inventory } = await loadJournalEvents(args);
   const replay = replayEvents(events, args);
-  applyInventoryVerdict(replay.metrics, inventory);
+  const readiness = readinessFromReplay({ inventory, replay });
+  applyInventoryVerdict(replay.metrics, inventory, readiness);
   const result = {
     generatedAt: new Date().toISOString(),
     symbol,
     inventory,
+    readiness,
     ...replay
   };
   if (writeReport !== false) {
@@ -541,18 +593,70 @@ export async function replayBacktest(args = {}) {
   return result;
 }
 
-function applyInventoryVerdict(metrics, inventory) {
-  if (metrics.all.observations < MIN_MEANINGFUL_TOTAL_OBS || metrics.test.observations < MIN_MEANINGFUL_TEST_OBS) {
+export async function datasetStatus(args = {}) {
+  const { symbol = DEFAULT_SYMBOL } = args;
+  const { events, inventory } = await loadJournalEvents(args);
+  const replay = replayEvents(events, args);
+  const readiness = readinessFromReplay({ inventory, replay });
+  return {
+    generatedAt: new Date().toISOString(),
+    symbol,
+    inventory,
+    pairedObservations: replay.pairedObservations,
+    signalObservations: replay.signalObservations,
+    priceObservations: replay.priceObservations,
+    readiness
+  };
+}
+
+function readinessFromReplay({ inventory, replay }) {
+  const all = replay.metrics.all;
+  const test = replay.metrics.test;
+  const effectiveBreadth = all.breadth ?? 0;
+  const paired = replay.pairedObservations;
+  const unknown = inventory.bySource.unknown || 0;
+  const provenanceReady = inventory.missingProvenance === 0 && unknown === 0;
+  const quantityReady = paired >= MIN_PAIRED_OBSERVATIONS &&
+    effectiveBreadth >= MIN_EFFECTIVE_BREADTH &&
+    test.observations >= MIN_TEST_OBSERVATIONS;
+  const reasons = [];
+  if (paired < MIN_PAIRED_OBSERVATIONS) reasons.push(`paired observations ${paired} < ${MIN_PAIRED_OBSERVATIONS}`);
+  if (effectiveBreadth < MIN_EFFECTIVE_BREADTH) reasons.push(`effective breadth ${effectiveBreadth} < ${MIN_EFFECTIVE_BREADTH}`);
+  if (test.observations < MIN_TEST_OBSERVATIONS) reasons.push(`test observations ${test.observations} < ${MIN_TEST_OBSERVATIONS}`);
+  if (!provenanceReady) reasons.push(`legacy/missing-provenance events ${inventory.legacyUnusable || inventory.missingProvenance || unknown} > 0`);
+  return {
+    verdict: quantityReady && provenanceReady ? "READY" : "NOT-READY",
+    readyForIc: quantityReady && provenanceReady,
+    readyForTradableClaim: quantityReady && provenanceReady && inventory.dataQualityCeiling === "sequenced/high-confidence",
+    quantityReady,
+    provenanceReady,
+    quality: inventory.dataQualityCeiling,
+    pairedObservations: paired,
+    testObservations: test.observations,
+    effectiveBreadth,
+    minPairedObservations: MIN_PAIRED_OBSERVATIONS,
+    minEffectiveBreadth: MIN_EFFECTIVE_BREADTH,
+    minTestObservations: MIN_TEST_OBSERVATIONS,
+    pctCleanProvenance: inventory.pctCleanProvenance,
+    reasons
+  };
+}
+
+function applyInventoryVerdict(metrics, inventory, readiness) {
+  if (!readiness.readyForIc) {
+    metrics.all = suppressedMetricSet(metrics.all.observations);
+    metrics.train = suppressedMetricSet(metrics.train.observations);
+    metrics.test = suppressedMetricSet(metrics.test.observations);
     metrics.verdict = {
-      label: "Inconclusive - insufficient data",
-      reason: `Need at least ${MIN_MEANINGFUL_TOTAL_OBS} paired observations with ${MIN_MEANINGFUL_TEST_OBS} out-of-sample; got ${metrics.all.observations} paired and ${metrics.test.observations} test.`
+      label: "Refused - insufficient data, record more",
+      reason: `Backtest IC verdict withheld. Dataset is ${readiness.verdict}: ${readiness.reasons.join("; ")}.`
     };
     return;
   }
   if (inventory.dataQualityCeiling !== "sequenced/high-confidence") {
     metrics.verdict = {
       label: "Inconclusive - low-confidence data",
-      reason: `Journal data quality ceiling is ${inventory.dataQualityCeiling}; ${inventory.pctDegraded}% of events are degraded and cannot support a tradable edge claim.`
+      reason: `Journal data quality ceiling is ${inventory.dataQualityCeiling}; more DOM data raises n but does not upgrade the source to WS quality.`
     };
   }
 }
@@ -587,8 +691,11 @@ ${files}
 - Sources: ${json(inv.bySource)} (${inv.pctDom}% explicit DOM)
 - Confidence: ${json(inv.byConfidence)}
 - Degraded: ${inv.pctDegraded}%
+- Clean provenance: ${inv.pctCleanProvenance}%
+- Legacy/unusable rows: ${inv.legacyUnusable}
 - Replay signal observations: ${result.signalObservations}
 - Paired signal/forward-return observations: ${result.pairedObservations}
+- Dataset readiness: ${result.readiness?.verdict ?? "unknown"} (${(result.readiness?.reasons ?? []).join("; ") || "thresholds satisfied"})
 
 ## Method
 
@@ -612,7 +719,7 @@ Autocorrelation flag: all=${m.all.autocorrelationFlag}, train=${m.train.autocorr
 
 **${m.verdict.label}.** ${m.verdict.reason}
 
-Current data is too small and too degraded/missing-provenance for a meaningful conclusion. A useful next research run should collect at least ${MIN_MEANINGFUL_TOTAL_OBS} paired observations with at least ${MIN_MEANINGFUL_TEST_OBS} chronological out-of-sample observations; for a tradable claim, prefer many hundreds of independent observations from a sequenced/high-confidence feed. With the current Chrome/Coinbase build, Pass 3 found WS TAP VIABLE: NO, so any DOM-only result remains low-confidence even if the IC looks attractive.
+Current data is too small and/or too dirty for a meaningful conclusion. A useful next research run must collect at least ${MIN_PAIRED_OBSERVATIONS} paired observations, ${MIN_EFFECTIVE_BREADTH} effective independent observations after autocorrelation discounting, and ${MIN_TEST_OBSERVATIONS} chronological out-of-sample observations before any IC verdict is issued. For a tradable claim, the source must also be sequenced/high-confidence. With the current Chrome/Coinbase build, Pass 3 found WS TAP VIABLE: NO, so plentiful DOM-only data remains low-confidence even if the IC looks attractive.
 
 ## References
 
@@ -669,6 +776,11 @@ function parseArgs(argv) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.status) {
+    const status = await datasetStatus(args);
+    console.log(JSON.stringify(status, null, 2));
+    return;
+  }
   const result = await replayBacktest(args);
   const summary = {
     symbol: result.symbol,
@@ -676,7 +788,9 @@ async function main() {
     dateRange: [result.inventory.minTsIso, result.inventory.maxTsIso],
     sources: result.inventory.bySource,
     degradedPct: result.inventory.pctDegraded,
+    cleanProvenancePct: result.inventory.pctCleanProvenance,
     pairedObservations: result.pairedObservations,
+    readiness: result.readiness,
     verdict: result.metrics.verdict,
     reportPath: result.reportPath
   };

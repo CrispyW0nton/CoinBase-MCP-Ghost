@@ -9,7 +9,9 @@ PAPER P&L ledger, preview reconciliation, and a stubbed LIVE confirmation tool.
 Pass 3 adds transport diagnostics and explicit data provenance on every market
 event and derived value. Pass 4 adds an **offline-only** replay/backtest path
 for measuring the order-book-imbalance signal's information coefficient from
-already-recorded journal JSONL.
+already-recorded journal JSONL. Pass 5 hardens journal provenance, adds long
+DOM recording, and refuses IC verdicts until the dataset is large and clean
+enough.
 
 > Forked from `chrome-course-mcp` (a Brightspace page collector). The JSON-RPC
 > stdio shell and the `ChromeSession` CDP client are reused as-is and extended.
@@ -104,6 +106,8 @@ Leave this window open while you use the MCP.
 | `coinbase_attach` | Fail-closed attach to the Advanced Trade tab; returns `{ attached, signedIn, tab, probeResults }`. Other Coinbase tools refuse when `signedIn === false`. |
 | `coinbase_diagnose_transport` | Passive WS/SSE/poll/WebTransport diagnostic. Attaches before same-tab navigation, checks page and worker targets, and writes a `WS TAP VIABLE` verdict. |
 | `coinbase_backtest` | **Offline only.** Replays journal JSONL through the same causal imbalance signal layer, computes train/test Spearman IC, breadth, deflated-Sharpe controls, and writes `research/IC_REPORT_<UTC>.md`. No Chrome, REST, SDK, sockets, credentials, or clicks. |
+| `coinbase_dataset_status` | **Offline only.** Reports journal inventory, paired observations, clean provenance percentage, effective breadth, and READY / NOT-READY for IC research. |
+| `coinbase_record` | Long OBSERVE recorder. Samples the live DOM order book/trades tape, writes fully-provenanced events, reconnects on transient tab/session failures, and writes `recordings/<symbol>-<UTC>/manifest.json`. No clicks, REST, SDK, sockets, or orders. |
 | `coinbase_recon` | One-shot deep recon → `recon/<symbol>-<ts>/` (`dom-map.json`, `network-map.json`, `behavioral.json`, `screenshots/`, `RECON_REPORT.md`). Never submits an order. |
 | `coinbase_market_stream` | Prefers sequenced WS frames when available. If unavailable, uses loud DOM fallback only, with degraded provenance and no sequence-gap claims. |
 | `coinbase_snapshot_state` | Reads the in-memory ring buffer (counts, last tick/trade, recent N events). |
@@ -144,6 +148,25 @@ reference library.
 
 ## Offline IC research
 
+Check whether the journal is ready before running a backtest:
+
+```powershell
+npm run dataset -- --symbol BTC-USD --horizonObservations 1
+```
+
+The current readiness gate requires:
+
+- at least **2,000 paired observations**,
+- at least **2,000 effective independent observations** after lag-1
+  autocorrelation discounting,
+- at least **600 chronological test observations**,
+- **0 legacy/missing-provenance rows** in the selected dataset.
+
+This follows Grinold-Kahn's breadth discipline: raw event count is not the same
+as independent observations, and autocorrelation can make n look larger than it
+is. More DOM data can satisfy the quantity gate, but it remains
+**low-confidence / DOM-sourced** unless the feed quality improves.
+
 Run the backtest without attaching to Chrome:
 
 ```powershell
@@ -155,12 +178,36 @@ only causal book state through the shared imbalance signal, and measures the
 rank correlation between the signal and forward recorded mid/price returns.
 The report includes chronological train/test IC, standard errors, t-stats,
 breadth/autocorrelation flags, deflated Sharpe, and the number of parameter
-trials counted.
+trials counted. If the dataset is NOT-READY, `coinbase_backtest` withholds IC,
+t-stat, and Sharpe fields and returns `Refused - insufficient data, record
+more`.
 
-Important limitation: the current local journal is dominated by DOM fallback or
-missing-provenance records. Any result from that data is labeled
-**low-confidence / DOM-sourced** and is not eligible for sizing or live
-execution.
+Migration note: the existing `journal/BTC-USD/2026-06-10.jsonl` contains 356
+legacy rows with missing/unknown provenance. They are not retroactively fixed;
+dataset status marks them legacy/unusable. Keep them for audit if desired, but
+filter or discard them for future research.
+
+---
+
+## Long OBSERVE Recording
+
+Start from an already-signed-in Advanced Trade/Portfolio tab, then run the MCP
+tool:
+
+```jsonc
+{
+  "durationMs": 3600000,
+  "sampleIntervalMs": 1000,
+  "healthIntervalMs": 30000
+}
+```
+
+For a first useful research dataset, record until `npm run dataset` reports
+READY. With a 1-second DOM sampler, that likely means several hours rather
+than minutes because duplicated or autocorrelated observations are discounted.
+Each run writes a manifest under `recordings/` with start/end time, counts,
+provenance breakdown, disconnects, health heartbeats, journal stats, and any
+quarantined provenance failures.
 
 ---
 
@@ -169,6 +216,7 @@ execution.
 ```powershell
 npm run check   # syntax-checks every source + test file
 npm run smoke   # offline core invariants only by default
+npm run dataset -- --symbol BTC-USD --horizonObservations 1
 npm run backtest -- --symbol BTC-USD --horizonObservations 1
 ```
 

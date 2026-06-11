@@ -28,6 +28,7 @@ import {
   makeTick, makeL2Update, makeTrade, serializeEvent, dec
 } from "../src/schema.js";
 import { RingBuffer, JsonlJournal } from "../src/journal.js";
+import { validateJournalProvenance } from "../src/journal.js";
 import { parseCoinbaseFrame, reconcilePreviewIntent, confirmLive, paperLedgerState } from "../src/coinbase.js";
 import { replayEvents, replayBacktest } from "../src/replay.js";
 
@@ -110,6 +111,27 @@ async function offlineSuite() {
     await j.close();
     const count = await j.lineCount();
     assert.equal(count, 2);
+  });
+
+  await check("emitted event batch has 0% unknown or missing provenance", () => {
+    const events = [
+      serializeEvent(makeL2Update({ symbol: "BTC-USD", side: "bid", px: "1", sz: "1", source: "dom", ageMs: 0, hasSequence: false, confidence: "low", degradedReason: "rendered DOM snapshot" })),
+      serializeEvent(makeTick({ symbol: "BTC-USD", bidPx: "1", askPx: "2", source: "dom", ageMs: 0, hasSequence: false, confidence: "low", degradedReason: "rendered DOM snapshot" })),
+      serializeEvent(makeTrade({ symbol: "BTC-USD", side: null, px: "1", sz: "1", tradeId: "dom-1", source: "dom", ageMs: 0, hasSequence: false, confidence: "low", degradedReason: "rendered DOM snapshot" }))
+    ];
+    const unknown = events.filter(evt => evt.source === "unknown" || !validateJournalProvenance(evt).ok);
+    assert.equal(unknown.length, 0);
+  });
+
+  await check("journal rejects and quarantines events lacking complete provenance", async () => {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-journal-guard-"));
+    const j = new JsonlJournal({ baseDir, symbol: "BTC-USD" });
+    const result = j.append({ type: "tick", ts: Date.now(), symbol: "BTC-USD", bidPx: "1", askPx: "2" });
+    await j.close();
+    assert.equal(result.rejected, true);
+    assert.equal(await j.lineCount(), 0);
+    assert.equal(j.stats().rejected, 1);
+    assert.ok(fs.existsSync(result.quarantinePath));
   });
 
   await check("place_order risk gate (logic): OBSERVE_ONLY + killSwitch reject", async () => {
@@ -217,7 +239,22 @@ async function offlineSuite() {
     const report = fs.readFileSync(result.reportPath, "utf8");
     assert.match(report, /low-confidence \/ DOM-sourced/);
     assert.equal(result.inventory.bySource.dom, 3);
-    assert.equal(result.inventory.dataQualityCeiling, "low-confidence / DOM-sourced or missing-provenance");
+    assert.equal(result.inventory.dataQualityCeiling, "low-confidence / DOM-sourced");
+  });
+
+  await check("backtest refuses IC verdict below minimum sample threshold", async () => {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-replay-small-"));
+    const file = path.join(baseDir, "small.jsonl");
+    const lines = [
+      serializeEvent(makeL2Update({ ts: 1, symbol: "BTC-USD", side: "bid", px: "100", sz: "2", source: "dom", ageMs: 0, hasSequence: false, confidence: "low", degradedReason: "rendered DOM snapshot" })),
+      serializeEvent(makeL2Update({ ts: 2, symbol: "BTC-USD", side: "ask", px: "102", sz: "1", source: "dom", ageMs: 0, hasSequence: false, confidence: "low", degradedReason: "rendered DOM snapshot" })),
+      serializeEvent(makeL2Update({ ts: 3, symbol: "BTC-USD", side: "bid", px: "101", sz: "1", source: "dom", ageMs: 0, hasSequence: false, confidence: "low", degradedReason: "rendered DOM snapshot" }))
+    ].map(JSON.stringify).join("\n");
+    fs.writeFileSync(file, lines + "\n", "utf8");
+    const result = await replayBacktest({ files: [file], writeReport: false, horizonObservations: 1 });
+    assert.equal(result.readiness.verdict, "NOT-READY");
+    assert.match(result.metrics.verdict.label, /^Refused/);
+    assert.equal(result.metrics.all.ic, null);
   });
 }
 

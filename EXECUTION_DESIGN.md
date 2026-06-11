@@ -131,6 +131,16 @@ override Kelly's refusal of degraded/non-WS inputs. A DOM-sourced or
 missing-provenance IC result must remain labeled low-confidence even when the
 number is positive.
 
+Pass 5 adds a dataset gate before research can even issue IC statistics.
+`coinbase_dataset_status` requires 2,000 paired observations, 2,000 effective
+independent observations after autocorrelation discounting, 600 chronological
+test observations, and 0 legacy/missing-provenance rows. Below that,
+`coinbase_backtest` refuses the verdict and suppresses IC/t-stat/Sharpe fields.
+This follows Grinold-Kahn's breadth framing: raw DOM sample count is not
+independent breadth, and more low-confidence DOM data does not upgrade feed
+quality. The long recorder and its manifests are observation infrastructure
+only; they do not change the LIVE ladder or sizing refusal rules.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to
