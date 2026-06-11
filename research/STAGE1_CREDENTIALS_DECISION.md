@@ -152,8 +152,11 @@ It does not approve:
    channel inventory, sequence range, and heartbeat-counter range.
 11. Pass `coinbase_stage1_readiness` before Stage 2 starts.
 12. Route future live keyed frame payloads through `recordStage1FrameSource`;
-   set live manifest evidence flags only when the approved keyed WS rail was
-   actually used.
+    set live manifest evidence flags only when the approved keyed WS rail was
+    actually used. The manifest must also include nonzero frames and journal
+    writes, zero parse/unsequenced/duplicate/out-of-order frames, zero journal
+    rejects, heartbeat evidence, a valid sequence range, and 100% clean
+    provenance.
 13. Call `requireStage1KeyedWsApproval` before reading credential material or
     opening any Coinbase WS socket.
 14. Replace the fail-closed `createStage1KeyedWsFrameSource` placeholder only

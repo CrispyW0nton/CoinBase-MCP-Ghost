@@ -221,7 +221,10 @@ capture can be reviewed without reparsing source frames.
 `stage1:readiness` is the full Stage 1 gate reporter. It requires approval,
 WS-only high-confidence journal rows, zero gap events, Stage-0 readiness on the
 WS-quality data, and a completed live keyed WS manifest. Offline fixture ingests
-can exercise the path, but they do not unlock Stage 2.
+can exercise the path, but they do not unlock Stage 2. A future live manifest
+must include concrete frame evidence: nonzero frames and journal writes, zero
+parse/unsequenced/duplicate/out-of-order/rejected rows, heartbeat evidence,
+sequence range, and 100% clean provenance.
 
 Future keyed feed code must call `requireStage1KeyedWsApproval` before it opens
 or authenticates a Coinbase WS connection. The guard throws

@@ -204,6 +204,10 @@ approval gate, journal inventory, gap events, Stage-0 breadth/quantity checks,
 and Stage 1 manifests. Stage 2 cannot begin until this reporter passes: enough
 clean sequenced WS data must exist, and at least one completed manifest must
 prove live keyed WS flow rather than offline fixture ingest.
+Live evidence is not accepted from flags alone: the manifest must also show
+nonzero frames and journal writes, zero parse/unsequenced/duplicate/out-of-order
+frames, zero journal rejects, heartbeat frame/counter evidence, a valid
+`sequence_num` range, and 100% clean provenance.
 
 `recordStage1FrameSource` is the reusable recorder core for the future approved
 client. It accepts an async iterable of Coinbase WS frame payloads and routes

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.23.0 - Stage 1 live manifest evidence hardening
+
+Stage 1 readiness now verifies live manifest internals before accepting future
+keyed WebSocket evidence.
+
+- Live manifests must show nonzero frames and journal writes.
+- Live manifests must report zero parse errors, unsequenced frames,
+  duplicate/replayed frames, out-of-order frames, gaps, and journal rejections.
+- Live manifests must include heartbeat frame/counter evidence, a valid
+  `sequence_num` range, and 100% clean provenance.
+- Added smoke coverage proving a live-flagged manifest without frame evidence
+  does not satisfy the live-evidence gate.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.22.0 - Stage 1 feed preflight
 
 Stage 1 now has an approval-gated offline preflight for the future keyed

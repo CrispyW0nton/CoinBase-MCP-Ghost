@@ -87,7 +87,10 @@ keyed client until the approval phrase is present.
     gate reporter. It must pass before Stage 2 starts: explicit approval,
     WS-only/high-confidence journal rows, zero gap events, Stage-0 readiness on
     WS-quality data, and a completed live keyed WS manifest. Fixture-only
-    ingests are useful tests but are not live-feed evidence.
+    ingests are useful tests but are not live-feed evidence. Live manifests must
+    carry frame evidence: nonzero frames and journal writes, zero parse,
+    unsequenced, duplicate/replayed, out-of-order, and rejected rows, heartbeat
+    evidence, sequence range, and 100% clean provenance.
 18. Future approved keyed WS code should feed frames into
     `recordStage1FrameSource` so live capture uses the same audit, ingest,
     manifest, and readiness path as fixtures. Never set live evidence flags

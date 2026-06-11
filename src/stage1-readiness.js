@@ -100,7 +100,14 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
       liveWsFlowObserved: manifest.liveWsFlowObserved === true,
       frames: manifest.counts?.frames ?? manifest.framesInput ?? 0,
       gaps: Array.isArray(manifest.gaps) ? manifest.gaps.length : 0,
+      parseErrors: manifest.counts?.parseErrors ?? null,
+      unsequenced: manifest.counts?.unsequenced ?? null,
+      duplicateOrReplay: manifest.counts?.duplicateOrReplay ?? null,
+      outOfOrder: manifest.counts?.outOfOrder ?? null,
+      appendedWritten: manifest.appended?.written ?? manifest.journalStats?.written ?? null,
       journalRejected: manifest.counts?.journalRejected ?? manifest.journalStats?.rejected ?? null,
+      frameEvidence: manifest.frameEvidence || null,
+      provenance: manifest.provenance || null,
       startedAt: manifest.startedAt || null,
       endedAt: manifest.endedAt || null,
       journalPath: manifest.journalPath || null
@@ -114,23 +121,83 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
 }
 
 function stage1LiveEvidenceGate(manifests) {
-  const live = manifests.manifests.filter(item =>
-    item.status === "complete" &&
-    item.source === "ws" &&
-    item.dataQuality === "sequenced/high-confidence" &&
-    item.offlineOnly === false &&
-    item.networkTouched === true &&
-    item.keyedClientImplemented === true &&
-    item.liveWsFlowObserved === true &&
-    item.gaps === 0 &&
-    item.journalRejected === 0
-  );
-  const reasons = live.length ? [] : ["no completed live keyed WS Stage 1 manifest observed"];
+  const assessments = manifests.manifests.map(validateStage1LiveManifestEvidence);
+  const live = assessments.filter(item => item.pass).map(item => item.manifest);
+  const candidateFailures = assessments
+    .filter(item => item.candidate && !item.pass)
+    .flatMap(item => item.reasons.map(reason => `${item.manifest.file}: ${reason}`));
+  const reasons = live.length ? [] : [
+    "no completed live keyed WS Stage 1 manifest observed",
+    ...candidateFailures
+  ];
   return {
     verdict: live.length ? "PASS" : "NOT-READY",
     pass: live.length > 0,
-    reasons,
+    reasons: [...new Set(reasons)],
     matchingManifests: live
+  };
+}
+
+function validateStage1LiveManifestEvidence(manifest) {
+  const candidate = manifest.status === "complete" ||
+    manifest.networkTouched ||
+    manifest.keyedClientImplemented ||
+    manifest.liveWsFlowObserved;
+  const reasons = [];
+
+  if (manifest.status !== "complete") reasons.push("manifest status is not complete");
+  if (manifest.source !== "ws") reasons.push("manifest source is not ws");
+  if (manifest.dataQuality !== "sequenced/high-confidence") reasons.push("manifest dataQuality is not sequenced/high-confidence");
+  if (manifest.offlineOnly !== false) reasons.push("manifest offlineOnly is not false");
+  if (manifest.networkTouched !== true) reasons.push("manifest networkTouched is not true");
+  if (manifest.keyedClientImplemented !== true) reasons.push("manifest keyedClientImplemented is not true");
+  if (manifest.liveWsFlowObserved !== true) reasons.push("manifest liveWsFlowObserved is not true");
+  if (manifest.frames <= 0) reasons.push("manifest has no input frames");
+  if (manifest.appendedWritten <= 0) reasons.push("manifest has no written journal rows");
+  if (manifest.gaps !== 0) reasons.push(`manifest gaps ${manifest.gaps} > 0`);
+  for (const [key, label] of [
+    ["parseErrors", "parse errors"],
+    ["unsequenced", "unsequenced frames"],
+    ["duplicateOrReplay", "duplicate/replayed frames"],
+    ["outOfOrder", "out-of-order frames"],
+    ["journalRejected", "journal rejections"]
+  ]) {
+    const value = manifest[key];
+    if (value !== 0) reasons.push(`manifest ${label} ${value ?? "unknown"} is not 0`);
+  }
+
+  const frameEvidence = manifest.frameEvidence;
+  if (!frameEvidence || typeof frameEvidence !== "object") {
+    reasons.push("manifest frameEvidence is missing");
+  } else {
+    if (!Number.isFinite(frameEvidence.sequenceRange?.first) || !Number.isFinite(frameEvidence.sequenceRange?.last)) {
+      reasons.push("manifest frameEvidence sequenceRange is incomplete");
+    } else if (frameEvidence.sequenceRange.last < frameEvidence.sequenceRange.first) {
+      reasons.push("manifest frameEvidence sequenceRange is inverted");
+    }
+    if ((frameEvidence.channels?.heartbeats ?? 0) <= 0) {
+      reasons.push("manifest frameEvidence has no heartbeat frames");
+    }
+    if (!Number.isFinite(frameEvidence.heartbeatCounterRange?.first) || !Number.isFinite(frameEvidence.heartbeatCounterRange?.last)) {
+      reasons.push("manifest frameEvidence heartbeatCounterRange is incomplete");
+    } else if (frameEvidence.heartbeatCounterRange.last < frameEvidence.heartbeatCounterRange.first) {
+      reasons.push("manifest frameEvidence heartbeatCounterRange is inverted");
+    }
+  }
+
+  const provenance = manifest.provenance;
+  if (!provenance || typeof provenance !== "object") {
+    reasons.push("manifest provenance is missing");
+  } else {
+    if (provenance.totalEvents <= 0) reasons.push("manifest provenance has no events");
+    if (provenance.pctClean !== 100) reasons.push(`manifest provenance pctClean ${provenance.pctClean ?? "unknown"} is not 100`);
+  }
+
+  return {
+    candidate,
+    pass: reasons.length === 0,
+    reasons,
+    manifest
   };
 }
 
