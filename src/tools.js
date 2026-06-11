@@ -18,6 +18,7 @@ import { replayBacktest as coinbaseBacktest } from "./replay.js";
 import { datasetStatus as coinbaseDatasetStatus } from "./replay.js";
 import { dataAudit as coinbaseDataAudit } from "./audit.js";
 import { stageAAnalysis as coinbaseStageA } from "./stage-a.js";
+import { stage1ApprovalStatus as coinbaseStage1ApprovalStatus } from "./stage1-approval.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
 
@@ -307,6 +308,14 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_stage1_credentials_status",
+    description: "OFFLINE ONLY. Report whether the explicit Stage 1 human approval phrase is present and whether proposed Advanced Trade credential env vars are set. Never prints secret values, opens no socket, validates no credentials, and does not implement the keyed WS client.",
+    inputSchema: {
+      type: "object",
+      properties: {}
+    }
+  },
+  {
     name: "coinbase_attach",
     description: "Attach (fail-closed) to an already-open, already-signed-in Coinbase Advanced Trade tab in the debug profile. Returns { attached, signedIn, tab, probeResults }. Never falls back to an unrelated tab.",
     inputSchema: {
@@ -466,6 +475,8 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbaseDataAudit(args), null, 2));
     case "coinbase_stage_a":
       return textResult(JSON.stringify(await coinbaseStageA(args), null, 2));
+    case "coinbase_stage1_credentials_status":
+      return textResult(JSON.stringify(coinbaseStage1ApprovalStatus(), null, 2));
     case "coinbase_recon":
       return textResult(JSON.stringify(await coinbaseRecon(args), null, 2));
     case "coinbase_market_stream":

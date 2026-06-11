@@ -13,6 +13,11 @@ already-recorded journal JSONL. Pass 5 hardens journal provenance, adds long
 DOM recording, and refuses IC verdicts until the dataset is large and clean
 enough.
 
+Current stage: **Stage 1 - Real Sequenced Data Feed**. The Stage 1 gate is
+**closed** until a human explicitly approves building a keyed Coinbase Advanced
+Trade WebSocket data-feed client. No keyed client, credential validation,
+REST trading rail, or live order path is implemented.
+
 > Forked from `chrome-course-mcp` (a Brightspace page collector). The JSON-RPC
 > stdio shell and the `ChromeSession` CDP client are reused as-is and extended.
 
@@ -108,6 +113,7 @@ Leave this window open while you use the MCP.
 | `coinbase_backtest` | **Offline only.** Replays journal JSONL through the same causal imbalance signal layer, computes train/test Spearman IC, breadth, deflated-Sharpe controls, and writes `research/IC_REPORT_<UTC>.md`. No Chrome, REST, SDK, sockets, credentials, or clicks. |
 | `coinbase_dataset_status` | **Offline only.** Reports journal inventory, paired observations, clean provenance percentage, effective breadth, and READY / NOT-READY for IC research. |
 | `coinbase_data_audit` | **Offline only.** Writes a Stage 0 audit report covering readiness, legacy/unusable rows, recording manifests, and journal quarantine counts. |
+| `coinbase_stage1_credentials_status` | **Offline only.** Reports whether the explicit Stage 1 keyed-WS approval phrase is present and whether proposed credential env vars are set. Never prints secret values, opens sockets, or validates credentials. |
 | `coinbase_record` | Long OBSERVE recorder. Samples the live DOM order book/trades tape, writes fully-provenanced events, reconnects on transient tab/session failures, and writes `recordings/<symbol>-<UTC>/manifest.json`. No clicks, REST, SDK, sockets, or orders. |
 | `coinbase_recon` | One-shot deep recon → `recon/<symbol>-<ts>/` (`dom-map.json`, `network-map.json`, `behavioral.json`, `screenshots/`, `RECON_REPORT.md`). Never submits an order. |
 | `coinbase_market_stream` | Prefers sequenced WS frames when available. If unavailable, uses loud DOM fallback only, with degraded provenance and no sequence-gap claims. |
@@ -144,6 +150,18 @@ fills above $0 are rejected until you deliberately raise it.
 See **`EXECUTION_DESIGN.md`** for the full execution design and kill-switch flow,
 and **`knowledge-base/`** for the strategy rationale distilled from the
 reference library.
+
+Stage 1 credential approval is separate from LIVE execution. To inspect it:
+
+```powershell
+npm run stage1:approval
+```
+
+The required approval phrase is
+`APPROVE_STAGE1_KEYED_WS_DATA_FEED_ONLY`, documented in
+`research/STAGE1_CREDENTIALS_DECISION.md`. That phrase only approves building a
+sequenced market-data feed with `source:"ws"` provenance and gap detection; it
+does not approve orders, stops, REST trading, or LIVE arming.
 
 ---
 
@@ -269,9 +287,12 @@ degraded when sourced from DOM fallback.
 ## What's NOT in this pass
 
 - **No trading.** No `Place Order` / `Preview Order` click anywhere.
-- **No credentials / auth.** No API keys, JWTs, HMAC, or cookie extraction.
+- **No order-path credentials / auth.** No trading API keys, JWTs, HMAC, or
+  cookie extraction for execution.
 - **No Coinbase SDK or REST client** dependency.
-- **No second WebSocket.** We mirror the page's own feed.
+- **No keyed WebSocket client yet.** Stage 1 may add a data-feed-only Advanced
+  Trade WebSocket client after explicit approval; the current pass only adds
+  the approval gate.
 
 Design references live in `knowledge-base/`: Harris for order-book
 microstructure, Grinold-Kahn and Chan for IC/Kelly sizing, Lopez de Prado for

@@ -33,6 +33,12 @@ import { parseCoinbaseFrame, reconcilePreviewIntent, confirmLive, paperLedgerSta
 import { replayEvents, replayBacktest } from "../src/replay.js";
 import { dataAudit } from "../src/audit.js";
 import { stageAAnalysis } from "../src/stage-a.js";
+import {
+  stage1ApprovalStatus,
+  STAGE1_APPROVAL_ENV,
+  STAGE1_APPROVAL_PHRASE,
+  STAGE1_CREDENTIAL_ENVS
+} from "../src/stage1-approval.js";
 
 let failures = 0;
 function check(name, fn) {
@@ -311,6 +317,25 @@ async function offlineSuite() {
     assert.equal(result.readiness.verdict, "NOT-READY");
     assert.equal(result.gate.label, "Refused - Stage 0 not ready");
     assert.equal(result.gate.pass, false);
+  });
+
+  await check("Stage 1 credential gate is explicit and never leaks secrets", () => {
+    const env = {
+      [STAGE1_APPROVAL_ENV]: STAGE1_APPROVAL_PHRASE,
+      [STAGE1_CREDENTIAL_ENVS[0]]: "organizations/example/apiKeys/example-key",
+      [STAGE1_CREDENTIAL_ENVS[1]]: "-----BEGIN TEST PRIVATE KEY-----\nsecret-test-material\n-----END TEST PRIVATE KEY-----"
+    };
+    const status = stage1ApprovalStatus(env);
+    const serialized = JSON.stringify(status);
+    assert.equal(status.approved, true);
+    assert.equal(status.safeToBuildKeyedWs, true);
+    assert.equal(status.keyedClientImplemented, false);
+    assert.equal(status.liveTradingEnabled, false);
+    assert.equal(status.networkTouched, false);
+    assert.equal(status.credentialMaterialPresent[STAGE1_CREDENTIAL_ENVS[0]], true);
+    assert.equal(status.credentialMaterialPresent[STAGE1_CREDENTIAL_ENVS[1]], true);
+    assert.doesNotMatch(serialized, /secret-test-material/);
+    assert.doesNotMatch(serialized, /BEGIN TEST PRIVATE KEY/);
   });
 }
 

@@ -8,6 +8,13 @@
 > perform in a future LIVE pass, the policy that would generate each call, and
 > the kill-switch flow.
 
+> **Stage 1 note.** The current next stage is Real Sequenced Data Feed. Its
+> credential gate is closed until explicit human approval is given via
+> `APPROVE_STAGE1_KEYED_WS_DATA_FEED_ONLY`. That approval would cover only a
+> keyed Advanced Trade WebSocket market-data client with sequenced `source:"ws"`
+> provenance and gap detection. It does not authorize REST trading, order
+> placement, stops, LIVE arming, or any bypass of this execution design.
+
 ---
 
 ## 1. Safety model recap
@@ -159,6 +166,14 @@ risk money** for this imbalance signal. Stage B/C/D/E are therefore not
 eligible for this signal; no API rail, risk controls, LIVE ladder wiring, or
 paper-forward autonomy should be built from it.
 
+The only permitted next research direction is Stage 1 data quality: a
+human-approved keyed Advanced Trade WebSocket feed that captures real sequenced
+depth and detects `sequence_num` gaps. Until `coinbase_stage1_credentials_status`
+reports approval, no keyed feed may be built. After approval, the feed is still
+research infrastructure only; Stage-0 readiness, walk-forward tests, deflated
+Sharpe, realistic costs, and negative-result reporting remain mandatory before
+any later execution discussion.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to
@@ -206,7 +221,10 @@ Operator actions:
 - No click on Preview/Place Order.
 - No `Input.dispatchMouseEvent` / `Page.dispatchMouseEvent` against the form.
 - No `Runtime.evaluate` that mutates the order form.
-- No credentials, JWT, HMAC, cookies, REST, or SDK.
+- No order-path credentials, JWT, HMAC, cookies, REST, or SDK.
+- No keyed Advanced Trade WebSocket data-feed client until the Stage 1 approval
+  phrase is explicitly provided. The current repository only includes an
+  offline approval-status scaffold.
 
 Pass 2 implemented `coinbase_confirm_live` as a stub, preview reconciliation as
 a pure diff, and the PAPER P&L ledger. Future LIVE work still requires a fresh

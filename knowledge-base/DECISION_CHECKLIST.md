@@ -34,7 +34,12 @@ If any answer is "no" or "unknown", **stop and default to inaction**.
       drawdown before trusting it?
 
 ## E. Custody & asset reality (Antonopoulos; Ammous; Harvey; Finch)
-- [ ] No credentials, keys, JWTs, cookies, or REST/SDK touched anywhere.
+- [ ] No order-path credentials, keys, JWTs, cookies, or REST/SDK touched
+      anywhere.
+- [ ] If this is Stage 1 market-data work, has
+      `coinbase_stage1_credentials_status` reported the explicit
+      `APPROVE_STAGE1_KEYED_WS_DATA_FEED_ONLY` approval phrase, and is the
+      scope limited to sequenced WS data capture only?
 - [ ] For any non-BTC/ETH asset: did due diligence pass (tokenomics, audits,
       regulatory standing)? Default = trade only the most liquid majors.
 

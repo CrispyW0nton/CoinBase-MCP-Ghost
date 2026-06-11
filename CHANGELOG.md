@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.0 - Stage 1 credentials approval gate
+
+Stage 1 is now explicitly framed as **Real Sequenced Data Feed** work, not
+execution work.
+
+- Added `research/STAGE1_CREDENTIALS_DECISION.md` to record the human approval
+  gate for any keyed Coinbase Advanced Trade WebSocket data-feed client.
+- Added `coinbase_stage1_credentials_status` and `npm run stage1:approval`.
+  They are offline-only status checks: no Coinbase socket, no credential
+  validation, no secret printing, and no keyed client implementation.
+- The required approval phrase is
+  `APPROVE_STAGE1_KEYED_WS_DATA_FEED_ONLY`. It only authorizes building a
+  sequenced market-data feed with `source:"ws"` provenance and `sequence_num`
+  gap detection. It does not authorize REST trading, orders, stops, LIVE
+  arming, DOM execution, or bypassing the kill switch.
+- Added smoke coverage proving the status output uses credential presence
+  booleans and does not leak provided secret material.
+
 ## 0.7.0 - Stage A terminal no-edge verdict
 
 Stage A ran once on the Stage 0 clean window

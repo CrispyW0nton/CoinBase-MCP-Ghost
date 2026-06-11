@@ -1,5 +1,11 @@
 # Playbook 02 — Market-Data Tap
 
+Stage status: **Stage 1 - Real Sequenced Data Feed**. Gate status:
+**awaiting explicit human approval** for a keyed Coinbase Advanced Trade
+WebSocket data-feed client. Run `coinbase_stage1_credentials_status` or
+`npm run stage1:approval` before any keyed-feed work. Do not build or run the
+keyed client until the approval phrase is present.
+
 1. `coinbase_diagnose_transport { durationMs }` — attach before navigation and
    verify whether CDP exposes WS/SSE/WebTransport frames or only REST/poll
    candidates. Record the `WS TAP VIABLE` verdict before trusting any stream.
@@ -41,3 +47,8 @@
     terminal gate. If OOS IC/t-stat, deflated Sharpe, realistic
     fee/spread/slippage costs, or walk-forward persistence fail, document
     **no durable edge, do not risk money** and stop before PAPER/live work.
+11. Stage 1 may begin only after the explicit credential decision. Scope is
+    market data only: Advanced Trade WebSocket capture, real depth,
+    `source:"ws"` provenance, `hasSequence:true`, `sequence_num` gap detection,
+    append-only journal rows, and Stage-0 readiness checks on WS-quality data.
+    It does not authorize orders, REST trading, stops, or LIVE arming.
