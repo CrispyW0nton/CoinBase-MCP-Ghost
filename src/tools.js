@@ -332,7 +332,7 @@ export const tools = [
   },
   {
     name: "coinbase_stage1_feed_preflight",
-    description: "OFFLINE ONLY. Approval-required preflight for the future keyed Advanced Trade WS data feed: credential shape plus market-data subscription contract. Prints no credential values, opens no socket, generates no JWT, and places no orders.",
+    description: "OFFLINE ONLY. Approval-required preflight for the future keyed Advanced Trade WS data feed: credential shape plus market-data subscription contract with generatedAt ordering evidence. Prints no credential values, opens no socket, generates no JWT, and places no orders.",
     inputSchema: {
       type: "object",
       properties: {
@@ -394,7 +394,7 @@ export const tools = [
   },
   {
     name: "coinbase_stage1_readiness",
-    description: "OFFLINE ONLY. Report the full Stage 1 gate over journal data and manifests: credential approval, WS-only/high-confidence/gap-free data, Stage-0 readiness on WS-quality data, and live keyed WS manifest evidence with matching preflight product/level2 subscription. Opens no socket and places no orders.",
+    description: "OFFLINE ONLY. Report the full Stage 1 gate over journal data and manifests: credential approval, WS-only/high-confidence/gap-free data, Stage-0 readiness on WS-quality data, and live keyed WS manifest evidence with preflight timing plus matching product/level2 subscription. Opens no socket and places no orders.",
     inputSchema: {
       type: "object",
       properties: {

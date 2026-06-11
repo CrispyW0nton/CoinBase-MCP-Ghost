@@ -55,7 +55,8 @@ live manifest must satisfy the same raw-frame archive re-derivation inside
 `coinbase_stage1_readiness` that `npm run stage1:manifest-audit` reports:
 frame counts, frame evidence, and provenance must reproduce from
 `raw-frames.jsonl`. Its preflight evidence must also include a subscription
-plan for the manifest symbol with heartbeats and `level2`.
+plan for the manifest symbol with heartbeats and `level2`, and its
+`generatedAt` timestamp must be no later than the manifest start.
 
 `npm run stage1:subscription-plan` and `coinbase_stage1_subscription_plan` are
 the offline subscribe-message contract for the future approved client. They
@@ -73,7 +74,8 @@ socket, or implement the keyed client.
 `coinbase_stage1_feed_preflight` is the post-approval offline preflight for the
 future keyed feed. It composes credential-shape validation with the
 subscription-plan contract and returns one preflight verdict. It still does not
-generate JWTs, open sockets, place orders, or return credential values.
+generate JWTs, open sockets, place orders, or return credential values. Its
+secret-free `generatedAt` timestamp is ordering evidence for later readiness.
 
 `recordStage1FrameSource` is the reusable recorder core the future approved
 client should call. It accepts an async iterable of WS frame payloads and routes

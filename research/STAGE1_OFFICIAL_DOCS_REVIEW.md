@@ -92,8 +92,8 @@ socket, JWT generation, or Coinbase request was added by this review.
 - `coinbase_stage1_readiness` requires live manifests to carry coherent
   frame/provenance evidence, archive-derived summaries matching
   `raw-frames.jsonl`, and passed preflight evidence whose subscription plan
-  includes the manifest symbol, heartbeats, and `level2`, in addition to live
-  keyed-client flags.
+  includes the manifest symbol, heartbeats, and `level2`, with `generatedAt`
+  no later than manifest start, in addition to live keyed-client flags.
 - `coinbase_stage1_feed_audit` must pass on any captured frame window.
 - `coinbase_stage1_readiness` must pass before Stage 2 can begin.
 

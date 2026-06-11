@@ -241,6 +241,16 @@ function validateStage1LiveManifestEvidence(manifest) {
     if (preflight.keyedClientImplemented !== false) reasons.push("manifest preflight keyedClientImplemented is not false");
     if (preflight.jwtGenerated !== false) reasons.push("manifest preflight jwtGenerated is not false");
     if (preflight.safety?.noCredentialValuesReturned !== true) reasons.push("manifest preflight does not assert secret-free output");
+    const preflightTime = Date.parse(preflight.generatedAt || "");
+    const manifestStartedAt = Date.parse(manifest.startedAt || "");
+    if (!Number.isFinite(preflightTime)) {
+      reasons.push("manifest preflight generatedAt is missing or invalid");
+    }
+    if (!Number.isFinite(manifestStartedAt)) {
+      reasons.push("manifest startedAt is missing or invalid");
+    } else if (Number.isFinite(preflightTime) && preflightTime > manifestStartedAt) {
+      reasons.push("manifest preflight generatedAt is after manifest startedAt");
+    }
     const productIds = preflight.subscriptionPlan?.productIds;
     if (!Array.isArray(productIds) || !productIds.includes(manifest.symbol)) {
       reasons.push(`manifest preflight productIds do not include ${manifest.symbol}`);

@@ -513,6 +513,7 @@ async function offlineSuite() {
     assert.equal(result.networkTouched, false);
     assert.equal(result.keyedClientImplemented, false);
     assert.equal(result.jwtGenerated, false);
+    assert.ok(Number.isFinite(Date.parse(result.generatedAt)));
     assert.equal(result.preflight.pass, true);
     assert.equal(result.preflight.safeToOpenSocketInThisFunction, false);
     assert.equal(result.subscriptionPlan.validation.pass, true);
@@ -1097,6 +1098,55 @@ async function offlineSuite() {
     assert.equal(readiness.liveEvidenceGate.pass, false);
     assert.match(readiness.liveEvidenceGate.reasons.join("; "), /preflight productIds do not include BTC-USD/);
     assert.match(readiness.liveEvidenceGate.reasons.join("; "), /preflight subscription plan does not include level2/);
+  });
+
+  await check("Stage 1 readiness rejects live-flagged manifests with postdated preflight evidence", async () => {
+    const now = new Date().toISOString();
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-preflight-postdated-"));
+    async function* frameSource() {
+      yield stage1Heartbeat(78, 1, now);
+      yield {
+        channel: "level2",
+        sequence_num: 79,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      };
+      yield {
+        channel: "ticker",
+        sequence_num: 80,
+        timestamp: now,
+        events: [{ tickers: [{ product_id: "BTC-USD", best_bid: "100", best_ask: "102", price: "101" }] }]
+      };
+    }
+    const journalDir = path.join(baseDir, "journal");
+    const recordingsDir = path.join(baseDir, "recordings");
+    const preflight = stage1FeedPreflight({
+      env: stage1ApprovedCredentialEnv(),
+      productIds: ["BTC-USD"],
+      channels: ["level2", "ticker"]
+    });
+    const recorded = await recordStage1FrameSource({
+      frameSource: frameSource(),
+      journalDir,
+      outputRoot: recordingsDir,
+      manifestMeta: {
+        offlineOnly: false,
+        networkTouched: true,
+        keyedClientImplemented: true,
+        liveWsFlowObserved: true,
+        evidence: { preflight, testOnly: true, reason: "simulated postdated preflight" }
+      }
+    });
+    const manifest = JSON.parse(fs.readFileSync(recorded.manifestPath, "utf8"));
+    manifest.evidence.preflight.generatedAt = new Date(Date.parse(manifest.startedAt) + 1000).toISOString();
+    fs.writeFileSync(recorded.manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+
+    const readiness = await stage1Readiness({ journalDir, recordingsDir, horizonObservations: 1 });
+    assert.equal(readiness.liveEvidenceGate.pass, false);
+    assert.match(readiness.liveEvidenceGate.reasons.join("; "), /preflight generatedAt is after manifest startedAt/);
   });
 
   await check("Stage 1 readiness rejects live-flagged manifests without frame evidence", async () => {

@@ -24,6 +24,7 @@ export function stage1FeedPreflight({
   ];
 
   return {
+    generatedAt: new Date().toISOString(),
     stage: "Stage 1 - Real Sequenced Data Feed",
     offlineOnly: true,
     networkTouched: false,

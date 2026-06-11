@@ -186,7 +186,9 @@ generate JWTs or open a Coinbase connection.
 shape validation. It requires the same approval phrase, validates the proposed
 credential shapes, builds the market-data subscription plan, and returns whether
 the future connector is ready for a later JWT/socket implementation pass. It
-still opens no socket, generates no JWT, and never returns credential values.
+records a secret-free `generatedAt` timestamp for readiness ordering evidence,
+but still opens no socket, generates no JWT, and never returns credential
+values.
 
 The current official Coinbase Advanced Trade WebSocket contract is captured in
 `research/STAGE1_OFFICIAL_DOCS_REVIEW.md`. That artifact is documentation only:
@@ -237,7 +239,8 @@ parse/unsequenced/duplicate/out-of-order/rejected rows, heartbeat evidence,
 sequence range, raw frame SHA-256 digest with matching archive, 100% clean
 provenance, archive-derived counts/evidence/provenance that match the manifest
 summary, and a secret-free passed `coinbase_stage1_feed_preflight` snapshot
-whose subscription plan includes the manifest symbol, heartbeats, and `level2`.
+whose `generatedAt` is no later than the manifest start and whose subscription
+plan includes the manifest symbol, heartbeats, and `level2`.
 
 Future keyed feed code must call `requireStage1KeyedWsApproval` before it opens
 or authenticates a Coinbase WS connection. The guard throws

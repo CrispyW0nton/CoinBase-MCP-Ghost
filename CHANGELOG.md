@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.31.0 - Stage 1 preflight timing evidence
+
+Stage 1 preflight evidence now records when the offline preflight was produced,
+and readiness enforces that it predates live manifest capture.
+
+- `coinbase_stage1_feed_preflight` now includes a secret-free `generatedAt`
+  timestamp.
+- `coinbase_stage1_readiness` rejects live-flagged manifests when preflight
+  evidence is missing/invalid or generated after `manifest.startedAt`.
+- Added smoke coverage for postdated preflight evidence on a live-flagged
+  manifest.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.30.0 - Stage 1 preflight evidence binding
 
 Stage 1 readiness now binds future live manifest evidence to the recorded

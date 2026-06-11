@@ -64,8 +64,8 @@ keyed client until the approval phrase is present.
     orders, stops, REST trading, or LIVE arming.
 14. `coinbase_stage1_feed_preflight` may run after approval to combine
     credential-shape validation with the market-data subscription contract. It
-    is still offline: no socket, no JWT generation, no orders, and no returned
-    credential values.
+    records a secret-free `generatedAt` timestamp and is still offline: no
+    socket, no JWT generation, no orders, and no returned credential values.
 15. `coinbase_stage1_feed_audit` or
     `npm run stage1:feed-audit -- --frames <jsonl>` — offline acceptance
     harness for supplied WS frame payloads. Require zero parse errors, zero
@@ -100,8 +100,8 @@ keyed client until the approval phrase is present.
     evidence, sequence range, raw-frame SHA-256 digest with matching archive,
     archive-derived counts/evidence/provenance that match the manifest summary,
     100% clean provenance, and a secret-free passed `coinbase_stage1_feed_preflight`
-    snapshot whose subscription plan includes the manifest symbol, heartbeats,
-    and `level2`.
+    snapshot whose `generatedAt` is no later than the manifest start and whose
+    subscription plan includes the manifest symbol, heartbeats, and `level2`.
 19. Future approved keyed WS code should feed frames into
     `recordStage1FrameSource` so live capture uses the same audit, ingest,
     manifest, and readiness path as fixtures. Never set live evidence flags
