@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.15.0 - Stage 1 official WS docs review
+
+Stage 1 now records the current official Coinbase Advanced Trade WebSocket
+contract for the future approved keyed data-feed implementation.
+
+- Added `research/STAGE1_OFFICIAL_DOCS_REVIEW.md` with official source links,
+  endpoint/subscription details, Level2 semantics, sequence-gap handling,
+  liveness requirements, and JWT implementation notes.
+- Updated Stage 1 docs to require re-checking current Coinbase docs and
+  resolving JWT sample discrepancies before replacing the fail-closed
+  `createStage1KeyedWsFrameSource` placeholder.
+- No credentialed client, JWT generation, credential read, socket, SDK call,
+  order placement, stop handling, or LIVE arming was added.
+
 ## 0.14.0 - Stage 1 keyed WS entrypoint stub
 
 Stage 1 now has an explicit fail-closed future live-feed entrypoint.

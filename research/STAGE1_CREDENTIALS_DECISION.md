@@ -80,6 +80,12 @@ Before implementation, the pass must verify current Coinbase Advanced Trade API
 documentation and adjust names/auth handling if Coinbase's official contract
 differs.
 
+The non-credentialed official WebSocket contract review is recorded in
+`research/STAGE1_OFFICIAL_DOCS_REVIEW.md`. It documents endpoints,
+subscription shape, Level2 semantics, sequence handling, heartbeat/liveness
+requirements, and open JWT-signing questions. It did not add credentialed code
+or open any Coinbase connection.
+
 ## Scope approved by the phrase
 
 The phrase approves only:
@@ -104,7 +110,8 @@ It does not approve:
 
 ## Required implementation gates after approval
 
-1. Verify current official Coinbase Advanced Trade WebSocket/auth docs.
+1. Verify current official Coinbase Advanced Trade WebSocket/auth docs and
+   update `research/STAGE1_OFFICIAL_DOCS_REVIEW.md` if the contract changed.
 2. Keep secrets in environment variables or the operator's secret manager only.
 3. Print only credential presence booleans, never values.
 4. Mark every event with complete provenance: `source:"ws"`, `ageMs`,
@@ -122,7 +129,8 @@ It does not approve:
 10. Call `requireStage1KeyedWsApproval` before reading credential material or
     opening any Coinbase WS socket.
 11. Replace the fail-closed `createStage1KeyedWsFrameSource` placeholder only
-    after approval and official Coinbase docs review.
+    after approval and official Coinbase docs review, including an explicit
+    resolution of the JWT issuer/audience sample discrepancy before signing.
 12. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
    deflated Sharpe, and realistic costs before any execution research.
 13. Leave LIVE trading disconnected until later risk, kill-switch, and human

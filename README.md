@@ -169,6 +169,12 @@ The required approval phrase is
 sequenced market-data feed with `source:"ws"` provenance and gap detection; it
 does not approve orders, stops, REST trading, or LIVE arming.
 
+The current official Coinbase Advanced Trade WebSocket contract is captured in
+`research/STAGE1_OFFICIAL_DOCS_REVIEW.md`. That artifact is documentation only:
+it does not add JWT generation, credential reads, sockets, SDK calls, or a
+keyed client. Any implementation pass must re-check current official docs
+before replacing the fail-closed placeholder.
+
 `stage1:feed-audit` is the offline contract for that future feed. It can audit
 captured frame payloads before any credentialed connector exists, and it keeps
 two gates separate: WS stream quality must be gap-clean and 100% provenanced,
@@ -327,8 +333,9 @@ degraded when sourced from DOM fallback.
   cookie extraction for execution.
 - **No Coinbase SDK or REST client** dependency.
 - **No keyed WebSocket client yet.** Stage 1 may add a data-feed-only Advanced
-  Trade WebSocket client after explicit approval; the current pass only adds
-  the approval gate.
+  Trade WebSocket client after explicit approval; the current repository only
+  includes the approval gate, offline audit/ingest/readiness path,
+  fail-closed placeholder, and official-docs review.
 
 Design references live in `knowledge-base/`: Harris for order-book
 microstructure, Grinold-Kahn and Chan for IC/Kelly sizing, Lopez de Prado for

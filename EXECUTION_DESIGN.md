@@ -14,6 +14,9 @@
 > keyed Advanced Trade WebSocket market-data client with sequenced `source:"ws"`
 > provenance and gap detection. It does not authorize REST trading, order
 > placement, stops, LIVE arming, or any bypass of this execution design.
+> The current official WebSocket contract review is recorded in
+> `research/STAGE1_OFFICIAL_DOCS_REVIEW.md`; it is documentation only and did
+> not add a client, JWT generation, credential reads, or sockets.
 
 ---
 
@@ -214,6 +217,12 @@ That gives later work a named integration point without quietly adding
 credential or network behavior before human approval and current Coinbase docs
 review.
 
+`research/STAGE1_OFFICIAL_DOCS_REVIEW.md` records the official Coinbase
+Advanced Trade WebSocket contract as of 2026-06-11. A future implementation
+pass must re-check those docs before coding and explicitly resolve the observed
+JWT sample discrepancy between official examples, especially issuer/audience
+fields, before signing any WebSocket subscription messages.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to
@@ -263,8 +272,9 @@ Operator actions:
 - No `Runtime.evaluate` that mutates the order form.
 - No order-path credentials, JWT, HMAC, cookies, REST, or SDK.
 - No keyed Advanced Trade WebSocket data-feed client until the Stage 1 approval
-  phrase is explicitly provided. The current repository only includes an
-  offline approval-status scaffold.
+  phrase is explicitly provided. The current repository includes only offline
+  approval/audit/ingest/readiness scaffolding, a fail-closed future entrypoint,
+  and an official-docs review.
 
 Pass 2 implemented `coinbase_confirm_live` as a stub, preview reconciliation as
 a pure diff, and the PAPER P&L ledger. Future LIVE work still requires a fresh
