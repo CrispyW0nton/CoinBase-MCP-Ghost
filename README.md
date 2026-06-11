@@ -201,6 +201,12 @@ keeps 356 legacy rows visible, but the clean research window starting
 `2026-06-10T20:54:21.206Z` is READY on quantity/provenance. Stage A work must
 use that explicit clean `startDate`; DOM quality remains low-confidence.
 
+Stage A result: `research/STAGE_A_REPORT_2026-06-11T01-54-36-935Z.md`
+terminates the path with **no durable edge, do not risk money**. The clean
+window passed Stage 0, but out-of-sample IC/t-stat, deflated Sharpe,
+fee/spread/slippage survival, and walk-forward persistence all failed. Do not
+proceed to Stage B/C/D/E for this signal.
+
 ---
 
 ## Long OBSERVE Recording

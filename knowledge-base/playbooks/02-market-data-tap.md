@@ -37,3 +37,7 @@
    gate passes. Keep every DOM/degraded result labeled **low-confidence /
    DOM-sourced**. A small in-sample win is not an edge claim (Grinold-Kahn,
    Lopez de Prado, Kahneman, Taleb).
+10. `coinbase_stage_a` or `npm run stage-a -- --startDate <clean-window>` —
+    terminal gate. If OOS IC/t-stat, deflated Sharpe, realistic
+    fee/spread/slippage costs, or walk-forward persistence fail, document
+    **no durable edge, do not risk money** and stop before PAPER/live work.

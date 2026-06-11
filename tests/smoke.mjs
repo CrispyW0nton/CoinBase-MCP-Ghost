@@ -32,6 +32,7 @@ import { validateJournalProvenance } from "../src/journal.js";
 import { parseCoinbaseFrame, reconcilePreviewIntent, confirmLive, paperLedgerState } from "../src/coinbase.js";
 import { replayEvents, replayBacktest } from "../src/replay.js";
 import { dataAudit } from "../src/audit.js";
+import { stageAAnalysis } from "../src/stage-a.js";
 
 let failures = 0;
 function check(name, fn) {
@@ -295,6 +296,21 @@ async function offlineSuite() {
     assert.equal(audit.migration.legacyUnusableRows, 1);
     assert.equal(audit.cleanWindow.needed, true);
     assert.equal(audit.cleanWindow.status.inventory.legacyUnusable, 0);
+  });
+
+  await check("Stage A refuses to run when Stage 0 readiness is not met", async () => {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage-a-"));
+    const file = path.join(baseDir, "small.jsonl");
+    const lines = [
+      serializeEvent(makeL2Update({ ts: 1, symbol: "BTC-USD", side: "bid", px: "100", sz: "2", source: "dom", ageMs: 0, hasSequence: false, confidence: "low", degradedReason: "rendered DOM snapshot" })),
+      serializeEvent(makeL2Update({ ts: 2, symbol: "BTC-USD", side: "ask", px: "102", sz: "1", source: "dom", ageMs: 0, hasSequence: false, confidence: "low", degradedReason: "rendered DOM snapshot" })),
+      serializeEvent(makeL2Update({ ts: 3, symbol: "BTC-USD", side: "bid", px: "101", sz: "1", source: "dom", ageMs: 0, hasSequence: false, confidence: "low", degradedReason: "rendered DOM snapshot" }))
+    ].map(JSON.stringify).join("\n");
+    fs.writeFileSync(file, lines + "\n", "utf8");
+    const result = await stageAAnalysis({ files: [file], writeReport: false, horizonObservations: 1 });
+    assert.equal(result.readiness.verdict, "NOT-READY");
+    assert.equal(result.gate.label, "Refused - Stage 0 not ready");
+    assert.equal(result.gate.pass, false);
   });
 }
 

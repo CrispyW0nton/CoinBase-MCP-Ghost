@@ -25,7 +25,7 @@ async function handle(request) {
       result(id, {
         protocolVersion,
         capabilities: { tools: {} },
-        serverInfo: { name: "coinbase-mcp-ghost", version: "0.6.0" }
+        serverInfo: { name: "coinbase-mcp-ghost", version: "0.7.0" }
       });
       return;
     }

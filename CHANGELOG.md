@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.0 - Stage A terminal no-edge verdict
+
+Stage A ran once on the Stage 0 clean window
+`2026-06-10T20:54:21.206Z` and terminated the trading path for the current
+imbalance signal.
+
+- Added `coinbase_stage_a` and `npm run stage-a`, an offline-only measurement
+  that refuses non-READY datasets, computes OOS IC/t-stat, deflated Sharpe /
+  probability of false positive, non-overlapping walk-forward windows, and a
+  conservative fee/spread/slippage survival check.
+- Committed `research/STAGE_A_REPORT_2026-06-11T01-54-36-935Z.md`.
+- Result: **Terminal - no durable edge, do not risk money.** OOS IC/t-stat,
+  deflated Sharpe, realistic costs, and walk-forward persistence all failed.
+- Stage B/C/D/E must not begin for this signal. This is a successful negative
+  research outcome, consistent with Kahneman/Taleb guardrails against forcing a
+  positive result.
+
 ## 0.6.0 - Pass 5 data-integrity recording gate
 
 Pass 5 makes future IC research possible by fixing the recording pipeline

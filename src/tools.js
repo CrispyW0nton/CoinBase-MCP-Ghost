@@ -17,6 +17,7 @@ import {
 import { replayBacktest as coinbaseBacktest } from "./replay.js";
 import { datasetStatus as coinbaseDatasetStatus } from "./replay.js";
 import { dataAudit as coinbaseDataAudit } from "./audit.js";
+import { stageAAnalysis as coinbaseStageA } from "./stage-a.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
 
@@ -280,6 +281,32 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_stage_a",
+    description: "OFFLINE ONLY. Run Stage A honest edge measurement after Stage 0 is READY: OOS IC/t-stat, non-overlapping walk-forward windows, conservative fee/spread/slippage costs, deflated Sharpe, and terminal no-edge verdict when gates fail. No Chrome, REST/SDK, sockets, credentials, clicks, or orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        journalDir: { type: "string", default: "journal" },
+        files: { type: "array", items: { type: "string" } },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 },
+        trials: { type: "number", default: 1 },
+        walkForwardWindows: { type: "number", default: 5 },
+        minWindowObservations: { type: "number", default: 100 },
+        feeBps: { type: "number", default: 60 },
+        spreadBps: { type: "number", default: 2 },
+        slippageBps: { type: "number", default: 2 },
+        outputDir: { type: "string", default: "research" },
+        writeReport: { type: "boolean", default: true }
+      }
+    }
+  },
+  {
     name: "coinbase_attach",
     description: "Attach (fail-closed) to an already-open, already-signed-in Coinbase Advanced Trade tab in the debug profile. Returns { attached, signedIn, tab, probeResults }. Never falls back to an unrelated tab.",
     inputSchema: {
@@ -437,6 +464,8 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbaseDatasetStatus(args), null, 2));
     case "coinbase_data_audit":
       return textResult(JSON.stringify(await coinbaseDataAudit(args), null, 2));
+    case "coinbase_stage_a":
+      return textResult(JSON.stringify(await coinbaseStageA(args), null, 2));
     case "coinbase_recon":
       return textResult(JSON.stringify(await coinbaseRecon(args), null, 2));
     case "coinbase_market_stream":

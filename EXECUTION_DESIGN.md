@@ -152,6 +152,13 @@ window beginning `2026-06-10T20:54:21.206Z` meets the quantity/provenance gate.
 Stage A may begin in a later iteration only with that explicit filter, while
 continuing to label the source as low-confidence DOM data.
 
+Stage A then ran on that exact clean window and failed every required evidence
+gate: out-of-sample IC/t-stat, deflated Sharpe, cost survival, and
+walk-forward persistence. The terminal decision is **no durable edge, do not
+risk money** for this imbalance signal. Stage B/C/D/E are therefore not
+eligible for this signal; no API rail, risk controls, LIVE ladder wiring, or
+paper-forward autonomy should be built from it.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to
