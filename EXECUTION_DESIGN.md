@@ -202,6 +202,12 @@ them through the same audit/ingest/manifest path. The default metadata is
 offline/no-network/no-keyed-client; a future connector may set live evidence
 flags only when it really used the human-approved keyed WS rail.
 
+Any future keyed WS connector must call `requireStage1KeyedWsApproval` before
+reading credential material, opening a socket, or producing live evidence
+manifests. The guard is fail-closed and its approved scope is market data only;
+it still forbids REST trading, order placement, stops, LIVE arming, DOM
+execution, credential logging, and kill-switch bypass.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to

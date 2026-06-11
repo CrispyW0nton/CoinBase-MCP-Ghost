@@ -185,6 +185,11 @@ WS-only high-confidence journal rows, zero gap events, Stage-0 readiness on the
 WS-quality data, and a completed live keyed WS manifest. Offline fixture ingests
 can exercise the path, but they do not unlock Stage 2.
 
+Future keyed feed code must call `requireStage1KeyedWsApproval` before it opens
+or authenticates a Coinbase WS connection. The guard throws
+`STAGE1_KEYED_WS_APPROVAL_REQUIRED` unless the approval phrase is present, and
+the approved scope remains market data only.
+
 ---
 
 ## Offline IC research

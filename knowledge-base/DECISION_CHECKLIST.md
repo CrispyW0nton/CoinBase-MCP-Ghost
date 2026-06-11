@@ -48,6 +48,8 @@ If any answer is "no" or "unknown", **stop and default to inaction**.
       `coinbase_stage1_ingest_frames` manifest show `status:"complete"`,
       zero journal rejects, and an approved live-frame source before treating
       it as real Stage 1 evidence?
+- [ ] Before any future keyed WS code reads credential material or opens a
+      socket, did `requireStage1KeyedWsApproval` pass for that exact purpose?
 - [ ] Before moving to Stage 2, does `coinbase_stage1_readiness` pass the full
       gate, including live keyed WS manifest evidence rather than fixture-only
       ingest?

@@ -37,6 +37,49 @@ export function stage1ApprovalStatus(env = process.env) {
   };
 }
 
+export function requireStage1KeyedWsApproval({ env = process.env, purpose = "keyed_ws_data_feed" } = {}) {
+  const status = stage1ApprovalStatus(env);
+  if (status.approved) {
+    return {
+      ok: true,
+      purpose,
+      approval: status,
+      allowedScope: [
+        "Coinbase Advanced Trade WebSocket market-data feed",
+        "sequenced frame capture",
+        "source:\"ws\" provenance",
+        "sequence_num gap detection",
+        "append-only journal output",
+        "Stage-0 readiness measurement on WS-quality data"
+      ],
+      forbiddenScope: [
+        "REST trading",
+        "order placement",
+        "stop-loss placement",
+        "LIVE arming",
+        "DOM execution",
+        "credential logging",
+        "kill-switch bypass"
+      ]
+    };
+  }
+
+  const err = new Error(
+    `Stage 1 keyed WS approval is required for ${purpose}. ` +
+    `Set ${status.approvalEnv} to ${status.requiredApprovalPhrase}.`
+  );
+  err.code = "STAGE1_KEYED_WS_APPROVAL_REQUIRED";
+  err.stage = status.stage;
+  err.purpose = purpose;
+  err.approvalEnv = status.approvalEnv;
+  err.requiredApprovalPhrase = status.requiredApprovalPhrase;
+  err.approved = false;
+  err.secretsPrinted = false;
+  err.networkTouched = false;
+  err.liveTradingEnabled = false;
+  throw err;
+}
+
 export function assertNoStage1Secrets(status) {
   const serialized = JSON.stringify(status);
   for (const name of STAGE1_CREDENTIAL_ENVS) {

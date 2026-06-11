@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.0 - Stage 1 keyed-feed approval guard
+
+Stage 1 now has a reusable fail-closed approval guard for any future keyed WS
+entrypoint.
+
+- Added `requireStage1KeyedWsApproval`, which throws
+  `STAGE1_KEYED_WS_APPROVAL_REQUIRED` unless the exact approval phrase is
+  present.
+- The guard returns a narrow allowed scope after approval and keeps forbidden
+  scope explicit: no REST trading, orders, stops, LIVE arming, DOM execution,
+  credential logging, or kill-switch bypass.
+- Added smoke coverage for fail-closed behavior, approved behavior, and
+  secret-free error output.
+
 ## 0.12.0 - Stage 1 recorder core contract
 
 Stage 1 now has a reusable recorder core for future live frame sources.

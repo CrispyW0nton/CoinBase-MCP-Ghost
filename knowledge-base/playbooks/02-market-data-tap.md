@@ -74,3 +74,7 @@ keyed client until the approval phrase is present.
     `recordStage1FrameSource` so live capture uses the same audit, ingest,
     manifest, and readiness path as fixtures. Never set live evidence flags
     unless the frames came from the approved keyed Advanced Trade WS rail.
+16. Future keyed WS code must call `requireStage1KeyedWsApproval` before
+    reading credential material or opening a socket. Approval authorizes market
+    data only; it never authorizes REST trading, orders, stops, LIVE arming, or
+    credential logging.

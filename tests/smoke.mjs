@@ -35,6 +35,7 @@ import { dataAudit } from "../src/audit.js";
 import { stageAAnalysis } from "../src/stage-a.js";
 import {
   stage1ApprovalStatus,
+  requireStage1KeyedWsApproval,
   STAGE1_APPROVAL_ENV,
   STAGE1_APPROVAL_PHRASE,
   STAGE1_CREDENTIAL_ENVS
@@ -340,6 +341,35 @@ async function offlineSuite() {
     assert.equal(status.credentialMaterialPresent[STAGE1_CREDENTIAL_ENVS[1]], true);
     assert.doesNotMatch(serialized, /secret-test-material/);
     assert.doesNotMatch(serialized, /BEGIN TEST PRIVATE KEY/);
+  });
+
+  await check("Stage 1 keyed WS guard fails closed without leaking credential values", () => {
+    const env = {
+      [STAGE1_APPROVAL_ENV]: "not-approved",
+      [STAGE1_CREDENTIAL_ENVS[0]]: "organizations/example/apiKeys/example-key",
+      [STAGE1_CREDENTIAL_ENVS[1]]: "secret-test-material"
+    };
+    assert.throws(
+      () => requireStage1KeyedWsApproval({ env, purpose: "smoke keyed feed" }),
+      err => {
+        const serialized = JSON.stringify(err, Object.getOwnPropertyNames(err));
+        assert.equal(err.code, "STAGE1_KEYED_WS_APPROVAL_REQUIRED");
+        assert.equal(err.networkTouched, false);
+        assert.equal(err.liveTradingEnabled, false);
+        assert.doesNotMatch(serialized, /secret-test-material/);
+        return true;
+      }
+    );
+  });
+
+  await check("Stage 1 keyed WS guard returns narrow scope after approval", () => {
+    const env = { [STAGE1_APPROVAL_ENV]: STAGE1_APPROVAL_PHRASE };
+    const result = requireStage1KeyedWsApproval({ env, purpose: "smoke keyed feed" });
+    assert.equal(result.ok, true);
+    assert.equal(result.approval.approved, true);
+    assert.ok(result.allowedScope.some(item => /WebSocket market-data/.test(item)));
+    assert.ok(result.forbiddenScope.includes("order placement"));
+    assert.ok(result.forbiddenScope.includes("LIVE arming"));
   });
 
   await check("Stage 1 feed audit separates WS quality from Stage-0 quantity", async () => {

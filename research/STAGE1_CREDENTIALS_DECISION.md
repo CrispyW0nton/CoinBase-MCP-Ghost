@@ -57,6 +57,10 @@ client should call. It accepts an async iterable of WS frame payloads and routes
 them through the same audit, strict journal ingest, manifest, and readiness
 contract used by fixtures.
 
+`requireStage1KeyedWsApproval` is the mandatory guard for any future keyed feed
+entrypoint. It must pass before credential material is read or a Coinbase WS
+socket is opened. Approval remains scoped to market data only.
+
 ## Proposed credential env names
 
 These names are placeholders for the next implementation pass and are not used
@@ -110,9 +114,11 @@ It does not approve:
 9. Route future live keyed frame payloads through `recordStage1FrameSource`;
    set live manifest evidence flags only when the approved keyed WS rail was
    actually used.
-10. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
+10. Call `requireStage1KeyedWsApproval` before reading credential material or
+    opening any Coinbase WS socket.
+11. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
    deflated Sharpe, and realistic costs before any execution research.
-11. Leave LIVE trading disconnected until later risk, kill-switch, and human
+12. Leave LIVE trading disconnected until later risk, kill-switch, and human
    approval gates are passed.
 
 ## Knowledge-base rationale
