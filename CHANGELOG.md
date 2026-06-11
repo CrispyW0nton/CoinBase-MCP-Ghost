@@ -37,6 +37,9 @@ rather than trying to prove an edge.
 - Added `coinbase_data_audit` and `npm run audit` to write Stage 0 audit
   reports covering readiness, recording manifests, quarantine counts, and
   legacy/unusable journal rows.
+- Audit reports now compute a recommended clean research window after the last
+  legacy/missing-provenance row so old audit data can stay on disk without
+  contaminating future readiness checks.
 - Backtests now require 2,000 paired observations, 2,000 effective independent
   observations after autocorrelation discounting, 600 chronological test
   observations, and 0 legacy/missing-provenance rows before issuing IC metrics.

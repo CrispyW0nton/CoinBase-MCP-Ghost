@@ -293,6 +293,8 @@ async function offlineSuite() {
     assert.equal(audit.recordings.count, 1);
     assert.equal(audit.quarantine.rows, 1);
     assert.equal(audit.migration.legacyUnusableRows, 1);
+    assert.equal(audit.cleanWindow.needed, true);
+    assert.equal(audit.cleanWindow.status.inventory.legacyUnusable, 0);
   });
 }
 

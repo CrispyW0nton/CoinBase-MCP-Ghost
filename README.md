@@ -191,7 +191,10 @@ filter or discard them for future research.
 
 `npm run audit` writes `research/DATA_AUDIT_<UTC>.md` with the Stage 0 gate
 state, journal inventory, recording manifests, quarantine reasons, and the
-legacy/unusable-row migration note.
+legacy/unusable-row migration note. When old legacy rows exist, the report also
+prints a recommended clean-window `startDate`; use that date for future
+`dataset`, `audit`, and eventually `backtest` commands so legacy audit rows stay
+visible but excluded from research readiness.
 
 ---
 

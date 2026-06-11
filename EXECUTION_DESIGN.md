@@ -141,6 +141,12 @@ independent breadth, and more low-confidence DOM data does not upgrade feed
 quality. The long recorder and its manifests are observation infrastructure
 only; they do not change the LIVE ladder or sizing refusal rules.
 
+Stage 0 audits may recommend a clean-window `startDate` after the last legacy
+or missing-provenance journal row. That date is a research-window filter only:
+it keeps old audit rows visible while preventing them from contaminating future
+readiness checks. It does not upgrade DOM source quality or unlock Stage A
+until the quantity and provenance gates are both met.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to

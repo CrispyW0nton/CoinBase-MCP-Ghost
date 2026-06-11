@@ -14,7 +14,7 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { datasetStatus } from "./replay.js";
+import { datasetStatus, loadJournalEvents } from "./replay.js";
 
 async function walk(dir, predicate = () => true) {
   if (!fsSync.existsSync(dir)) return [];
@@ -103,6 +103,7 @@ async function inspectQuarantine({ journalDir = "journal", quarantineDir } = {})
 export async function dataAudit(args = {}) {
   const generatedAt = new Date().toISOString();
   const status = await datasetStatus(args);
+  const cleanWindow = await inspectCleanWindow(args, status);
   const recordings = await inspectRecordings(args);
   const quarantine = await inspectQuarantine(args);
   const legacyRows = status.inventory.legacyUnusable || 0;
@@ -113,6 +114,7 @@ export async function dataAudit(args = {}) {
     gate: status.readiness.verdict,
     symbol: status.symbol,
     dataset: status,
+    cleanWindow,
     recordings,
     quarantine,
     migration: {
@@ -130,6 +132,31 @@ export async function dataAudit(args = {}) {
   return audit;
 }
 
+async function inspectCleanWindow(args, status) {
+  const { events } = await loadJournalEvents(args);
+  const legacyEvents = events.filter(evt => evt.source === "unknown" || evt.provenanceComplete !== true);
+  if (legacyEvents.length === 0) {
+    return {
+      needed: false,
+      reason: "Selected dataset already has 0 legacy/missing-provenance rows.",
+      startDate: args.startDate ?? null,
+      status
+    };
+  }
+  const lastLegacyTs = Math.max(...legacyEvents.map(evt => evt.ts));
+  const startDate = new Date(lastLegacyTs + 1).toISOString();
+  const statusArgs = { ...args, startDate };
+  const cleanStatus = await datasetStatus(statusArgs);
+  return {
+    needed: true,
+    reason: "Legacy/missing-provenance rows remain in the full selection; use this clean window for future Stage 0 readiness checks without retro-fabricating old provenance.",
+    lastLegacyTs,
+    lastLegacyIso: new Date(lastLegacyTs).toISOString(),
+    startDate,
+    status: cleanStatus
+  };
+}
+
 export async function writeAuditReport(audit, { outputDir = "research" } = {}) {
   await fs.mkdir(outputDir, { recursive: true });
   const stamp = audit.generatedAt.replace(/[:.]/g, "-");
@@ -142,6 +169,8 @@ function buildReport(audit) {
   const status = audit.dataset;
   const inv = status.inventory;
   const ready = status.readiness;
+  const clean = audit.cleanWindow;
+  const cleanReady = clean?.status?.readiness;
   const manifests = audit.recordings.manifests.length
     ? audit.recordings.manifests.map(m => `- \`${m.file}\`: status=${m.status ?? "unknown"}, events=${m.events}, rejected=${m.journalRejected}, disconnects=${m.disconnects}, quality=${m.dataQuality ?? "unknown"}`).join("\n")
     : "- No recording manifests found.";
@@ -173,6 +202,22 @@ ${ready.reasons.length ? ready.reasons.map(reason => `- ${reason}`).join("\n") :
 - Data-quality ceiling: **${inv.dataQualityCeiling}**
 
 Migration note: ${audit.migration.note}
+
+## Clean Research Window
+
+${clean?.needed
+  ? `Recommended startDate: \`${clean.startDate}\` (first millisecond after last legacy row at ${clean.lastLegacyIso}).`
+  : "The selected dataset already has no legacy/missing-provenance rows."}
+
+Clean-window status: **${clean?.status?.readiness?.verdict ?? "unknown"}**
+
+${cleanReady?.reasons?.length ? cleanReady.reasons.map(reason => `- ${reason}`).join("\n") : "- Clean-window readiness thresholds satisfied."}
+
+- Clean-window events: ${clean?.status?.inventory?.events ?? 0}
+- Clean-window paired observations: ${clean?.status?.pairedObservations ?? 0}
+- Clean-window effective breadth: ${cleanReady?.effectiveBreadth ?? 0}
+- Clean-window provenance: ${clean?.status?.inventory?.pctCleanProvenance ?? 0}%
+- Clean-window quality: **${clean?.status?.inventory?.dataQualityCeiling ?? "unknown"}**
 
 ## Recording Manifests
 
@@ -223,6 +268,12 @@ async function main() {
     pairedObservations: audit.dataset.pairedObservations,
     cleanProvenancePct: audit.dataset.inventory.pctCleanProvenance,
     legacyUnusableRows: audit.dataset.inventory.legacyUnusable,
+    cleanWindow: audit.cleanWindow ? {
+      startDate: audit.cleanWindow.startDate,
+      gate: audit.cleanWindow.status.readiness.verdict,
+      pairedObservations: audit.cleanWindow.status.pairedObservations,
+      cleanProvenancePct: audit.cleanWindow.status.inventory.pctCleanProvenance
+    } : null,
     recordingManifests: audit.recordings.count,
     quarantinedRows: audit.quarantine.rows,
     reportPath: audit.reportPath
