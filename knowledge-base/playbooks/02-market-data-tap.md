@@ -52,7 +52,13 @@ keyed client until the approval phrase is present.
     `source:"ws"` provenance, `hasSequence:true`, `sequence_num` gap detection,
     append-only journal rows, and Stage-0 readiness checks on WS-quality data.
     It does not authorize orders, REST trading, stops, or LIVE arming.
-12. `coinbase_stage1_feed_audit` or
+12. `coinbase_stage1_subscription_plan` or
+    `npm run stage1:subscription-plan -- --productIds BTC-USD --channels level2,ticker,market_trades`
+    — offline subscribe-message contract for the future approved connector.
+    Require the market-data endpoint, one channel per message, heartbeats for
+    liveness, and no user/futures channels. This tool never generates JWTs,
+    reads credentials, or opens a socket.
+13. `coinbase_stage1_feed_audit` or
     `npm run stage1:feed-audit -- --frames <jsonl>` — offline acceptance
     harness for supplied WS frame payloads. Require zero parse errors, zero
     unsequenced frames, zero gaps, 100% clean `source:"ws"` provenance, and real
@@ -60,30 +66,30 @@ keyed client until the approval phrase is present.
     and breadth thresholds on the normalized WS events before any Stage 2
     signal research can begin. Level2 payloads may arrive as `level2` or the
     official receive-channel example `l2_data`; both must normalize to L2 depth.
-13. `coinbase_stage1_ingest_frames` or
+14. `coinbase_stage1_ingest_frames` or
     `npm run stage1:ingest -- --frames <jsonl>` — offline journal writer for
     supplied frames that already pass the WS-quality gate. It refuses dirty or
     gapped windows by default, writes strict-provenance JSONL rows, and emits a
     manifest. Do not treat ingested fixtures as live Stage 1 evidence unless
     the frames came from the approved keyed Advanced Trade WS client.
-14. `coinbase_stage1_readiness` or `npm run stage1:readiness` — full Stage 1
+15. `coinbase_stage1_readiness` or `npm run stage1:readiness` — full Stage 1
     gate reporter. It must pass before Stage 2 starts: explicit approval,
     WS-only/high-confidence journal rows, zero gap events, Stage-0 readiness on
     WS-quality data, and a completed live keyed WS manifest. Fixture-only
     ingests are useful tests but are not live-feed evidence.
-15. Future approved keyed WS code should feed frames into
+16. Future approved keyed WS code should feed frames into
     `recordStage1FrameSource` so live capture uses the same audit, ingest,
     manifest, and readiness path as fixtures. Never set live evidence flags
     unless the frames came from the approved keyed Advanced Trade WS rail.
-16. Future keyed WS code must call `requireStage1KeyedWsApproval` before
+17. Future keyed WS code must call `requireStage1KeyedWsApproval` before
     reading credential material or opening a socket. Approval authorizes market
     data only; it never authorizes REST trading, orders, stops, LIVE arming, or
     credential logging.
-17. Review `research/STAGE1_OFFICIAL_DOCS_REVIEW.md` before any implementation
+18. Review `research/STAGE1_OFFICIAL_DOCS_REVIEW.md` before any implementation
     pass. Re-check the current official Coinbase docs and resolve the documented
     JWT sample discrepancy before adding JavaScript signing or subscription
     code.
-18. `createStage1KeyedWsFrameSource` is the current fail-closed placeholder for
+19. `createStage1KeyedWsFrameSource` is the current fail-closed placeholder for
     that future connector. It must keep throwing
     `STAGE1_KEYED_WS_CLIENT_NOT_IMPLEMENTED` until human approval and a fresh
     official Coinbase docs review happen in the implementation pass.

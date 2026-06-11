@@ -22,6 +22,7 @@ import { stage1ApprovalStatus as coinbaseStage1ApprovalStatus } from "./stage1-a
 import { stage1FeedAudit as coinbaseStage1FeedAudit } from "./stage1-feed-audit.js";
 import { stage1IngestFrames as coinbaseStage1IngestFrames } from "./stage1-ingest.js";
 import { stage1Readiness as coinbaseStage1Readiness } from "./stage1-readiness.js";
+import { createStage1SubscriptionPlan as coinbaseStage1SubscriptionPlan } from "./stage1-ws-contract.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
 
@@ -378,6 +379,20 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_stage1_subscription_plan",
+    description: "OFFLINE ONLY. Build and validate the future Advanced Trade WS market-data subscribe-message plan: market endpoint only, one channel per message, heartbeats for liveness, no user/trading channels, no JWT generation, no socket.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        productIds: { type: "array", items: { type: "string" }, default: ["BTC-USD"] },
+        channels: { type: "array", items: { type: "string" }, default: ["level2", "ticker", "market_trades"] },
+        includeHeartbeats: { type: "boolean", default: true },
+        jwt: { type: "string" },
+        endpoint: { type: "string", default: "wss://advanced-trade-ws.coinbase.com" }
+      }
+    }
+  },
+  {
     name: "coinbase_attach",
     description: "Attach (fail-closed) to an already-open, already-signed-in Coinbase Advanced Trade tab in the debug profile. Returns { attached, signedIn, tab, probeResults }. Never falls back to an unrelated tab.",
     inputSchema: {
@@ -545,6 +560,8 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbaseStage1IngestFrames(args), null, 2));
     case "coinbase_stage1_readiness":
       return textResult(JSON.stringify(await coinbaseStage1Readiness(args), null, 2));
+    case "coinbase_stage1_subscription_plan":
+      return textResult(JSON.stringify(coinbaseStage1SubscriptionPlan(args), null, 2));
     case "coinbase_recon":
       return textResult(JSON.stringify(await coinbaseRecon(args), null, 2));
     case "coinbase_market_stream":

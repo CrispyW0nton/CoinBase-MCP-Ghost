@@ -46,6 +46,7 @@ import {
   createStage1KeyedWsFrameSource,
   STAGE1_KEYED_WS_NOT_IMPLEMENTED
 } from "../src/stage1-keyed-ws.js";
+import { createStage1SubscriptionPlan } from "../src/stage1-ws-contract.js";
 import { recordStage1FrameSource } from "../src/stage1-recorder.js";
 import { stage1Readiness } from "../src/stage1-readiness.js";
 
@@ -440,6 +441,44 @@ async function offlineSuite() {
         return true;
       }
     );
+  });
+
+  await check("Stage 1 subscription plan is offline, market-data only, and heartbeat-backed", () => {
+    const plan = createStage1SubscriptionPlan({
+      productIds: ["btc-usd", "BTC-USD"],
+      channels: ["l2_data", "ticker", "market_trades"],
+      jwt: "test.jwt.value"
+    });
+    assert.equal(plan.offlineOnly, true);
+    assert.equal(plan.networkTouched, false);
+    assert.equal(plan.keyedClientImplemented, false);
+    assert.equal(plan.credentialMaterialRead, false);
+    assert.equal(plan.jwtGenerated, false);
+    assert.equal(plan.endpoint, "wss://advanced-trade-ws.coinbase.com");
+    assert.deepEqual(plan.productIds, ["BTC-USD"]);
+    assert.deepEqual(plan.channels, ["heartbeats", "level2", "ticker", "market_trades"]);
+    assert.equal(plan.messages.length, 4);
+    assert.deepEqual(plan.messages.map(message => message.channel), ["heartbeats", "level2", "ticker", "market_trades"]);
+    assert.ok(plan.messages.every(message => message.type === "subscribe"));
+    assert.equal(Object.prototype.hasOwnProperty.call(plan.messages[0], "product_ids"), false);
+    assert.deepEqual(plan.messages[1].product_ids, ["BTC-USD"]);
+    assert.equal(plan.messages[1].jwt, "test.jwt.value");
+    assert.equal(plan.validation.pass, true);
+    assert.match(plan.validation.warnings.join("; "), /l2_data normalized/);
+    assert.equal(plan.safety.noUserChannel, true);
+  });
+
+  await check("Stage 1 subscription plan rejects user endpoint and user channels", () => {
+    const plan = createStage1SubscriptionPlan({
+      endpoint: "wss://advanced-trade-ws-user.coinbase.com",
+      channels: ["user"],
+      includeHeartbeats: false
+    });
+    assert.equal(plan.validation.pass, false);
+    assert.match(plan.validation.reasons.join("; "), /endpoint must be/);
+    assert.match(plan.validation.reasons.join("; "), /channel user is forbidden/);
+    assert.equal(plan.safety.marketDataOnly, false);
+    assert.equal(plan.networkTouched, false);
   });
 
   await check("Stage 1 feed audit separates WS quality from Stage-0 quantity", async () => {

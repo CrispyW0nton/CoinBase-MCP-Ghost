@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.17.0 - Stage 1 offline subscription plan contract
+
+Stage 1 now has an offline subscribe-message planner for the future approved
+Advanced Trade WebSocket connector.
+
+- Added `createStage1SubscriptionPlan` and
+  `coinbase_stage1_subscription_plan`.
+- Added `npm run stage1:subscription-plan`.
+- The planner enforces the market-data endpoint, one channel per subscribe
+  message, heartbeats for liveness, market-data channels only, and rejection of
+  the user endpoint/user and futures channels.
+- It never reads credentials, generates JWTs, opens sockets, places orders,
+  handles stops, or arms LIVE.
+- Added smoke coverage for a valid heartbeat-backed plan and forbidden user
+  endpoint/channel refusal.
+
 ## 0.16.0 - Stage 1 official Level2 receive alias
 
 Stage 1 now recognizes the official Coinbase Level2 receive-channel example in

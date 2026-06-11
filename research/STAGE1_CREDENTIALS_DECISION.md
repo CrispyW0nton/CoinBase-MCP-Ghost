@@ -52,6 +52,12 @@ gate reporter. They require approval, clean WS-only journal data, no gap events,
 Stage-0 readiness on WS-quality data, and a completed live keyed WS manifest.
 Offline fixture ingests remain test evidence only.
 
+`npm run stage1:subscription-plan` and `coinbase_stage1_subscription_plan` are
+the offline subscribe-message contract for the future approved client. They
+validate the market endpoint, one channel per subscribe message, heartbeats for
+liveness, market-data channels only, and rejection of user/futures channels.
+They never generate JWTs, read credential material, or open a socket.
+
 `recordStage1FrameSource` is the reusable recorder core the future approved
 client should call. It accepts an async iterable of WS frame payloads and routes
 them through the same audit, strict journal ingest, manifest, and readiness
@@ -114,26 +120,29 @@ It does not approve:
    update `research/STAGE1_OFFICIAL_DOCS_REVIEW.md` if the contract changed.
 2. Keep secrets in environment variables or the operator's secret manager only.
 3. Print only credential presence booleans, never values.
-4. Mark every event with complete provenance: `source:"ws"`, `ageMs`,
+4. Build subscription messages through the Stage 1 subscription-plan contract:
+   market endpoint only, one channel per message, heartbeats included, no
+   user/futures channels, and no REST trading endpoint.
+5. Mark every event with complete provenance: `source:"ws"`, `ageMs`,
    `hasSequence:true`, `confidence:"high"`, and `degraded:false`.
-5. Detect `sequence_num` gaps and fail Stage 0 readiness unless the selected
+6. Detect `sequence_num` gaps and fail Stage 0 readiness unless the selected
    window is gap-clean.
-6. Pass `coinbase_stage1_feed_audit`: zero parse errors, zero unsequenced
+7. Pass `coinbase_stage1_feed_audit`: zero parse errors, zero unsequenced
    frames, zero gaps, 100% clean WS provenance, and real L2 depth updates.
-7. Use `coinbase_stage1_ingest_frames` or the same underlying ingest path to
+8. Use `coinbase_stage1_ingest_frames` or the same underlying ingest path to
    append only clean sequenced events to JSONL with a manifest.
-8. Pass `coinbase_stage1_readiness` before Stage 2 starts.
-9. Route future live keyed frame payloads through `recordStage1FrameSource`;
+9. Pass `coinbase_stage1_readiness` before Stage 2 starts.
+10. Route future live keyed frame payloads through `recordStage1FrameSource`;
    set live manifest evidence flags only when the approved keyed WS rail was
    actually used.
-10. Call `requireStage1KeyedWsApproval` before reading credential material or
+11. Call `requireStage1KeyedWsApproval` before reading credential material or
     opening any Coinbase WS socket.
-11. Replace the fail-closed `createStage1KeyedWsFrameSource` placeholder only
+12. Replace the fail-closed `createStage1KeyedWsFrameSource` placeholder only
     after approval and official Coinbase docs review, including an explicit
     resolution of the JWT issuer/audience sample discrepancy before signing.
-12. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
+13. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
    deflated Sharpe, and realistic costs before any execution research.
-13. Leave LIVE trading disconnected until later risk, kill-switch, and human
+14. Leave LIVE trading disconnected until later risk, kill-switch, and human
    approval gates are passed.
 
 ## Knowledge-base rationale

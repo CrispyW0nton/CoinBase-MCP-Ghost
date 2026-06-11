@@ -205,6 +205,12 @@ them through the same audit/ingest/manifest path. The default metadata is
 offline/no-network/no-keyed-client; a future connector may set live evidence
 flags only when it really used the human-approved keyed WS rail.
 
+`coinbase_stage1_subscription_plan` is the offline contract for the future
+connector's subscribe messages. It plans the market-data endpoint only, one
+channel per subscribe message, heartbeats for liveness, and market-data
+channels only. It rejects the user endpoint and user/futures channels, and it
+does not generate JWTs, read credentials, or open a socket.
+
 Any future keyed WS connector must call `requireStage1KeyedWsApproval` before
 reading credential material, opening a socket, or producing live evidence
 manifests. The guard is fail-closed and its approved scope is market data only;
@@ -275,8 +281,8 @@ Operator actions:
 - No order-path credentials, JWT, HMAC, cookies, REST, or SDK.
 - No keyed Advanced Trade WebSocket data-feed client until the Stage 1 approval
   phrase is explicitly provided. The current repository includes only offline
-  approval/audit/ingest/readiness scaffolding, a fail-closed future entrypoint,
-  and an official-docs review.
+  approval/audit/ingest/readiness scaffolding, an offline subscription-plan
+  contract, a fail-closed future entrypoint, and an official-docs review.
 
 Pass 2 implemented `coinbase_confirm_live` as a stub, preview reconciliation as
 a pure diff, and the PAPER P&L ledger. Future LIVE work still requires a fresh

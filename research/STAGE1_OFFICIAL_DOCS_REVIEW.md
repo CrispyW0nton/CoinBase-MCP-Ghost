@@ -58,12 +58,18 @@ socket, JWT generation, or Coinbase request was added by this review.
 14. Coinbase warns that some channels close after 60-90 seconds without
     updates and suggests heartbeats alongside other subscriptions. The future
     client should include heartbeats for liveness evidence.
+15. The offline subscription-plan contract must keep these rules explicit:
+    market-data endpoint only, one channel per subscribe message, product IDs
+    on market-data channels, heartbeats for liveness, and no user/futures
+    channels in Stage 1.
 
 ## Repo Mapping
 
 - `requireStage1KeyedWsApproval` must run before credential material is read.
 - `createStage1KeyedWsFrameSource` is the placeholder to replace after
   approval and docs re-check.
+- `coinbase_stage1_subscription_plan` plans and validates subscribe-message
+  shapes offline before any future approved connector can send them.
 - `recordStage1FrameSource` is the required downstream path for received
   frames so parser, audit, journal, manifest, and readiness behavior are shared
   with fixtures.

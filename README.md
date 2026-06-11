@@ -117,6 +117,7 @@ Leave this window open while you use the MCP.
 | `coinbase_stage1_feed_audit` | **Offline only.** Audits supplied Coinbase Advanced Trade WS frame payloads for `sequence_num` gaps, `source:"ws"` provenance, normalized market-data counts, and Stage-0 readiness on WS-quality data. Opens no socket and uses no credentials. |
 | `coinbase_stage1_ingest_frames` | **Offline only.** Converts supplied clean WS frame payloads into strict-provenance JSONL journal rows plus a Stage 1 manifest. Refuses gapped/dirty windows by default. Opens no socket and uses no credentials. |
 | `coinbase_stage1_readiness` | **Offline only.** Reports the full Stage 1 gate: approval status, WS-only journal quality, gap count, Stage-0 readiness, and whether a completed live keyed WS manifest exists. |
+| `coinbase_stage1_subscription_plan` | **Offline only.** Builds and validates the future market-data subscribe-message plan: market endpoint only, one channel per message, heartbeats included, user/trading channels rejected, no JWT generation and no socket. |
 | `coinbase_record` | Long OBSERVE recorder. Samples the live DOM order book/trades tape, writes fully-provenanced events, reconnects on transient tab/session failures, and writes `recordings/<symbol>-<UTC>/manifest.json`. No clicks, REST, SDK, sockets, or orders. |
 | `coinbase_recon` | One-shot deep recon → `recon/<symbol>-<ts>/` (`dom-map.json`, `network-map.json`, `behavioral.json`, `screenshots/`, `RECON_REPORT.md`). Never submits an order. |
 | `coinbase_market_stream` | Prefers sequenced WS frames when available. If unavailable, uses loud DOM fallback only, with degraded provenance and no sequence-gap claims. |
@@ -158,6 +159,7 @@ Stage 1 credential approval is separate from LIVE execution. To inspect it:
 
 ```powershell
 npm run stage1:approval
+npm run stage1:subscription-plan -- --productIds BTC-USD --channels level2,ticker,market_trades
 npm run stage1:feed-audit -- --frames path\to\ws-frames.jsonl
 npm run stage1:ingest -- --frames path\to\ws-frames.jsonl
 npm run stage1:readiness
@@ -174,6 +176,11 @@ The current official Coinbase Advanced Trade WebSocket contract is captured in
 it does not add JWT generation, credential reads, sockets, SDK calls, or a
 keyed client. Any implementation pass must re-check current official docs
 before replacing the fail-closed placeholder.
+
+`stage1:subscription-plan` is the offline message-shape contract for the future
+approved connector. It targets `wss://advanced-trade-ws.coinbase.com`, emits
+one subscribe message per channel, includes `heartbeats` for liveness, rejects
+the user endpoint/user channels, and never generates JWTs or opens a socket.
 
 `stage1:feed-audit` is the offline contract for that future feed. It can audit
 captured frame payloads before any credentialed connector exists, and it keeps
@@ -303,6 +310,7 @@ npm run dataset -- --symbol BTC-USD --horizonObservations 1
 npm run audit -- --symbol BTC-USD --horizonObservations 1
 npm run backtest -- --symbol BTC-USD --horizonObservations 1
 npm run stage1:approval
+npm run stage1:subscription-plan
 npm run stage1:feed-audit
 npm run stage1:ingest
 npm run stage1:readiness
@@ -337,7 +345,8 @@ degraded when sourced from DOM fallback.
 - **No keyed WebSocket client yet.** Stage 1 may add a data-feed-only Advanced
   Trade WebSocket client after explicit approval; the current repository only
   includes the approval gate, offline audit/ingest/readiness path,
-  fail-closed placeholder, and official-docs review.
+  offline subscription-plan contract, fail-closed placeholder, and
+  official-docs review.
 
 Design references live in `knowledge-base/`: Harris for order-book
 microstructure, Grinold-Kahn and Chan for IC/Kelly sizing, Lopez de Prado for
