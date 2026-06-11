@@ -801,6 +801,48 @@ async function offlineSuite() {
     assert.equal(manifestAudit.verdict, "PASS");
     assert.equal(manifestAudit.counts.manifests, 1);
     assert.equal(manifestAudit.counts.archiveVerified, 1);
+    assert.equal(manifestAudit.manifests[0].derivedFromArchive.frames, frames.length);
+    assert.equal(
+      manifestAudit.manifests[0].derivedFromArchive.frameEvidence.rawFrameSha256,
+      manifest.frameEvidence.rawFrameSha256
+    );
+    assert.deepEqual(manifestAudit.manifests[0].derivedFromArchive.provenance, manifest.provenance);
+  });
+
+  await check("Stage 1 manifest audit fails when manifest summaries drift from raw archive", async () => {
+    const now = new Date().toISOString();
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-summary-drift-"));
+    const journalDir = path.join(baseDir, "journal");
+    const outputRoot = path.join(baseDir, "recordings");
+    const frames = [
+      stage1Heartbeat(59, 1, now),
+      {
+        channel: "level2",
+        sequence_num: 60,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      },
+      {
+        channel: "ticker",
+        sequence_num: 61,
+        timestamp: now,
+        events: [{ tickers: [{ product_id: "BTC-USD", best_bid: "100", best_ask: "102", price: "101" }] }]
+      }
+    ];
+    const result = await stage1IngestFrames({ frames, journalDir, outputRoot, horizonObservations: 1 });
+    const manifest = JSON.parse(fs.readFileSync(result.manifestPath, "utf8"));
+    manifest.frameEvidence.sequenceRange.last = 999;
+    manifest.provenance.cleanEvents = 0;
+    fs.writeFileSync(result.manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf8");
+
+    const manifestAudit = await stage1ManifestAudit({ recordingsDir: outputRoot });
+    assert.equal(manifestAudit.verdict, "FAIL");
+    assert.equal(manifestAudit.manifests[0].rawFrameArchive.verified, true);
+    assert.match(manifestAudit.reasons.join("; "), /manifest frameEvidence does not match archive/);
+    assert.match(manifestAudit.reasons.join("; "), /manifest provenance does not match archive/);
   });
 
   await check("Stage 1 ingest refuses gapped WS frames by default", async () => {

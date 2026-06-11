@@ -87,7 +87,8 @@ socket, JWT generation, or Coinbase request was added by this review.
   live-capture evidence. `raw-frames.jsonl` archives preserve the matching raw
   frame window beside each manifest.
 - `coinbase_stage1_manifest_audit` verifies manifest/archive digest integrity
-  offline before any archive-backed evidence is trusted.
+  and re-derives frame counts, evidence, and provenance offline before any
+  archive-backed evidence is trusted.
 - `coinbase_stage1_readiness` requires live manifests to carry coherent
   frame/provenance evidence and passed preflight evidence in addition to live
   keyed-client flags.

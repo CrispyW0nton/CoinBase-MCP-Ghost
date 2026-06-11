@@ -119,7 +119,7 @@ Leave this window open while you use the MCP.
 | `coinbase_stage1_feed_preflight` | **Offline only and approval required.** Combines credential-shape validation with the market-data subscription contract for the future keyed feed. Prints no credential values, opens no socket, generates no JWT, and places no orders. |
 | `coinbase_stage1_feed_audit` | **Offline only.** Audits supplied Coinbase Advanced Trade WS frame payloads for `sequence_num` gaps, duplicate/replay frames, heartbeat/liveness evidence, `source:"ws"` provenance, normalized market-data counts, and Stage-0 readiness on WS-quality data. Opens no socket and uses no credentials. |
 | `coinbase_stage1_ingest_frames` | **Offline only.** Converts supplied clean WS frame payloads into strict-provenance JSONL journal rows plus a Stage 1 manifest. Refuses gapped/dirty windows by default. Opens no socket and uses no credentials. |
-| `coinbase_stage1_manifest_audit` | **Offline only.** Audits Stage 1 manifests and `raw-frames.jsonl` archives for digest/frame-count integrity. Opens no socket and uses no credentials. |
+| `coinbase_stage1_manifest_audit` | **Offline only.** Audits Stage 1 manifests and `raw-frames.jsonl` archives for digest/frame-count integrity, then re-derives counts, frame evidence, and provenance from the archive. Opens no socket and uses no credentials. |
 | `coinbase_stage1_readiness` | **Offline only.** Reports the full Stage 1 gate: approval status, WS-only journal quality, gap count, Stage-0 readiness, and whether a completed live keyed WS manifest exists. |
 | `coinbase_stage1_subscription_plan` | **Offline only.** Builds and validates the future market-data subscribe-message plan: market endpoint only, one channel per message, heartbeats included, user/trading channels rejected, no JWT generation and no socket. |
 | `coinbase_record` | Long OBSERVE recorder. Samples the live DOM order book/trades tape, writes fully-provenanced events, reconnects on transient tab/session failures, and writes `recordings/<symbol>-<UTC>/manifest.json`. No clicks, REST, SDK, sockets, or orders. |
@@ -224,7 +224,9 @@ exact evidence window can be identified later. `stage1:ingest` writes the raw
 frames to `raw-frames.jsonl` beside the manifest, and readiness verifies that
 archive against the manifest digest before accepting future live evidence.
 `stage1:manifest-audit` can verify those manifest/archive pairs directly
-without running the full Stage 1 readiness gate.
+without running the full Stage 1 readiness gate. It also re-parses the raw
+archive and compares derived counts, gap counts, `frameEvidence`, and
+provenance against the manifest summary.
 
 `stage1:readiness` is the full Stage 1 gate reporter. It requires approval,
 WS-only high-confidence journal rows, zero gap events, Stage-0 readiness on the

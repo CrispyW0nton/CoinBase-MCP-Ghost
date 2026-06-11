@@ -87,8 +87,9 @@ keyed client until the approval phrase is present.
     client.
 17. `coinbase_stage1_manifest_audit` or `npm run stage1:manifest-audit` —
     offline integrity check for Stage 1 manifests and raw-frame archives. It
-    must pass for archive-backed evidence before any future live manifest is
-    trusted.
+    re-derives counts, gap counts, frame evidence, and provenance from
+    `raw-frames.jsonl`, and must pass before any future archive-backed live
+    manifest is trusted.
 18. `coinbase_stage1_readiness` or `npm run stage1:readiness` — full Stage 1
     gate reporter. It must pass before Stage 2 starts: explicit approval,
     WS-only/high-confidence journal rows, zero gap events, Stage-0 readiness on

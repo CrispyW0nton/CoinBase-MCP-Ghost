@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.28.0 - Stage 1 manifest archive re-derivation
+
+Stage 1 manifest audits now re-derive manifest summaries from archived raw
+frames instead of trusting stored summary fields alone.
+
+- `stage1ManifestAudit` re-parses `raw-frames.jsonl` and compares derived
+  counts, gap counts, `frameEvidence`, and provenance against `manifest.json`.
+- Added smoke coverage for a manifest whose archive still verifies but whose
+  summary fields drift from the archived frame window.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.27.0 - Stage 1 manifest archive audit
 
 Stage 1 now has a standalone offline manifest/archive integrity audit.

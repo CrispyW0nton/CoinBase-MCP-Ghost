@@ -50,7 +50,9 @@ come from the approved keyed client.
 `npm run stage1:readiness` and `coinbase_stage1_readiness` are the full Stage 1
 gate reporter. They require approval, clean WS-only journal data, no gap events,
 Stage-0 readiness on WS-quality data, and a completed live keyed WS manifest.
-Offline fixture ingests remain test evidence only.
+Offline fixture ingests remain test evidence only. Any future archive-backed
+live manifest must also pass `npm run stage1:manifest-audit`, which re-derives
+frame counts, frame evidence, and provenance from `raw-frames.jsonl`.
 
 `npm run stage1:subscription-plan` and `coinbase_stage1_subscription_plan` are
 the offline subscribe-message contract for the future approved client. They
@@ -151,7 +153,8 @@ It does not approve:
    append only clean sequenced events to JSONL with a manifest that records
    channel inventory, sequence range, heartbeat-counter range, and a raw-frame
    SHA-256 digest. Preserve the matching raw frames in `raw-frames.jsonl`.
-11. Pass `coinbase_stage1_manifest_audit` for archive-backed evidence.
+11. Pass `coinbase_stage1_manifest_audit`, including re-derived frame counts,
+    frame evidence, and provenance, for archive-backed evidence.
 12. Pass `coinbase_stage1_readiness` before Stage 2 starts.
 13. Route future live keyed frame payloads through `recordStage1FrameSource`;
    set live manifest evidence flags only when the approved keyed WS rail was

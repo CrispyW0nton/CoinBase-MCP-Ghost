@@ -36,8 +36,7 @@ export async function inspectRawFrameArchive({ manifestFile, manifest }) {
   }
   const archivePath = path.resolve(path.dirname(manifestFile), archive.path);
   try {
-    const text = await fs.readFile(archivePath, "utf8");
-    const frames = text.trim() ? text.trim().split(/\r?\n/).map(line => JSON.parse(line)) : [];
+    const frames = await readRawFrameArchive(archivePath);
     const sha256 = rawFrameDigest(frames);
     const expectedSha = manifest.frameEvidence?.rawFrameSha256;
     const metadataSha = archive.sha256;
@@ -64,4 +63,9 @@ export async function inspectRawFrameArchive({ manifestFile, manifest }) {
       reason: `raw frame archive unreadable: ${err.message}`
     };
   }
+}
+
+export async function readRawFrameArchive(file) {
+  const text = await fs.readFile(file, "utf8");
+  return text.trim() ? text.trim().split(/\r?\n/).map(line => JSON.parse(line)) : [];
 }
