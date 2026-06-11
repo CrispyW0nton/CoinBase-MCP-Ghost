@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { datasetStatus } from "./replay.js";
 import { stage1ApprovalStatus } from "./stage1-approval.js";
 import { inspectRawFrameArchive } from "./stage1-frame-evidence.js";
+import { validateJournalProvenance } from "./journal.js";
 import {
   deriveStage1ArchiveEvidence,
   stage1ManifestIntegrityReasons
@@ -101,6 +102,7 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
       rawFrameArchive,
       derivedFromArchive
     });
+    const journalEvidence = await inspectManifestJournal({ manifest });
     manifests.push({
       file: path.relative(process.cwd(), file),
       status: manifest.status || null,
@@ -130,7 +132,8 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
       evidence: manifest.evidence || null,
       startedAt: manifest.startedAt || null,
       endedAt: manifest.endedAt || null,
-      journalPath: manifest.journalPath || null
+      journalPath: manifest.journalPath || null,
+      journalEvidence
     });
   }
   return {
@@ -138,6 +141,62 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
     count: manifests.length,
     manifests: manifests.sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt)))
   };
+}
+
+async function inspectManifestJournal({ manifest }) {
+  const journalPath = manifest.journalPath || manifest.journalStats?.path;
+  if (!journalPath || typeof journalPath !== "string") {
+    return {
+      present: false,
+      path: null,
+      rows: 0,
+      invalid: 0,
+      symbolRows: 0,
+      cleanWsRows: 0,
+      reason: "journal path missing"
+    };
+  }
+  const resolved = path.resolve(process.cwd(), journalPath);
+  const evidence = {
+    present: true,
+    path: path.relative(process.cwd(), resolved),
+    rows: 0,
+    invalid: 0,
+    symbolRows: 0,
+    cleanWsRows: 0,
+    reason: null
+  };
+  try {
+    const text = await fs.readFile(resolved, "utf8");
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      evidence.rows++;
+      let event;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        evidence.invalid++;
+        continue;
+      }
+      if (event.symbol !== manifest.symbol) continue;
+      evidence.symbolRows++;
+      const provenance = validateJournalProvenance(event);
+      if (provenance.ok &&
+          event.source === "ws" &&
+          event.confidence === "high" &&
+          event.hasSequence === true &&
+          event.degraded === false) {
+        evidence.cleanWsRows++;
+      }
+    }
+    return evidence;
+  } catch (err) {
+    return {
+      ...evidence,
+      present: false,
+      reason: `journal unreadable: ${err.message}`
+    };
+  }
 }
 
 function stage1LiveEvidenceGate(manifests) {
@@ -174,6 +233,19 @@ function validateStage1LiveManifestEvidence(manifest) {
   if (manifest.liveWsFlowObserved !== true) reasons.push("manifest liveWsFlowObserved is not true");
   if (manifest.frames <= 0) reasons.push("manifest has no input frames");
   if (manifest.appendedWritten <= 0) reasons.push("manifest has no written journal rows");
+  if (manifest.journalEvidence?.present !== true) {
+    reasons.push(`manifest journal evidence is missing: ${manifest.journalEvidence?.reason || "unknown"}`);
+  } else {
+    if (manifest.journalEvidence.invalid !== 0) {
+      reasons.push(`manifest journal has invalid JSONL rows ${manifest.journalEvidence.invalid} > 0`);
+    }
+    if (manifest.journalEvidence.cleanWsRows < manifest.appendedWritten) {
+      reasons.push(`manifest journal clean WS rows ${manifest.journalEvidence.cleanWsRows} < appended rows ${manifest.appendedWritten ?? "unknown"}`);
+    }
+    if (manifest.journalEvidence.symbolRows < manifest.appendedWritten) {
+      reasons.push(`manifest journal symbol rows ${manifest.journalEvidence.symbolRows} < appended rows ${manifest.appendedWritten ?? "unknown"}`);
+    }
+  }
   if (manifest.gaps !== 0) reasons.push(`manifest gaps ${manifest.gaps} > 0`);
   for (const [key, label] of [
     ["parseErrors", "parse errors"],

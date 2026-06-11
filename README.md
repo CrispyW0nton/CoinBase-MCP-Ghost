@@ -236,12 +236,13 @@ WS-quality data, and a completed live keyed WS manifest. Offline fixture ingests
 can exercise the path, but they do not unlock Stage 2. A future live manifest
 must include concrete frame evidence: nonzero frames and journal writes, zero
 parse/unsequenced/duplicate/out-of-order/rejected rows, heartbeat evidence,
-sequence range, raw frame SHA-256 digest with matching archive, 100% clean
-provenance, archive-derived counts/evidence/provenance that match the manifest
-summary, and a secret-free passed `coinbase_stage1_feed_preflight` snapshot
-whose `generatedAt` is no later than the manifest start and whose subscription
-plan includes the manifest symbol, heartbeats, and `level2`. Manifests marked
-`evidence.testOnly:true` are always rejected as live evidence.
+sequence range, raw frame SHA-256 digest with matching archive, a readable
+`journalPath` containing enough clean WS rows for the claimed appended rows,
+100% clean provenance, archive-derived counts/evidence/provenance that match
+the manifest summary, and a secret-free passed `coinbase_stage1_feed_preflight`
+snapshot whose `generatedAt` is no later than the manifest start and whose
+subscription plan includes the manifest symbol, heartbeats, and `level2`.
+Manifests marked `evidence.testOnly:true` are always rejected as live evidence.
 
 Future keyed feed code must call `requireStage1KeyedWsApproval` before it opens
 or authenticates a Coinbase WS connection. The guard throws

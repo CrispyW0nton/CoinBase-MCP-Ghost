@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.33.0 - Stage 1 journal evidence reconciliation
+
+Stage 1 readiness now verifies that live manifest journal claims are backed by
+the referenced JSONL journal file.
+
+- `coinbase_stage1_readiness` inspects each Stage 1 manifest's `journalPath`
+  and reports `journalEvidence` with row, invalid-row, symbol-row, and clean-WS
+  counts.
+- Live manifest evidence is rejected when the journal file is missing,
+  unreadable, contains invalid JSONL rows, or lacks enough clean WS rows for
+  the manifest's claimed appended rows.
+- Added smoke coverage for a live-flagged manifest whose journal path is
+  tampered to a missing file.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.32.0 - Stage 1 test-only evidence rejection
 
 Stage 1 readiness now refuses live manifests that explicitly mark their evidence

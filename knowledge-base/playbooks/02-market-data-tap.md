@@ -98,6 +98,8 @@ keyed client until the approval phrase is present.
     carry frame evidence: nonzero frames and journal writes, zero parse,
     unsequenced, duplicate/replayed, out-of-order, and rejected rows, heartbeat
     evidence, sequence range, raw-frame SHA-256 digest with matching archive,
+    readable journal evidence containing enough clean WS rows for the manifest's
+    claimed appended rows,
     archive-derived counts/evidence/provenance that match the manifest summary,
     100% clean provenance, and a secret-free passed `coinbase_stage1_feed_preflight`
     snapshot whose `generatedAt` is no later than the manifest start and whose

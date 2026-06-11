@@ -216,6 +216,8 @@ Live evidence is not accepted from flags alone: the manifest must also show
 nonzero frames and journal writes, zero parse/unsequenced/duplicate/out-of-order
 frames, zero journal rejects, heartbeat frame/counter evidence, a valid
 `sequence_num` range, a valid raw-frame SHA-256 digest with matching archive,
+readable journal evidence containing enough clean WS rows for the manifest's
+claimed appended rows,
 archive-derived counts/evidence/provenance that match the manifest summary,
 100% clean provenance, and secret-free evidence that
 `coinbase_stage1_feed_preflight` passed before the live connector opened the
