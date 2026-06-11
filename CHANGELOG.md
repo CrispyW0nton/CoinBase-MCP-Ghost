@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.22.0 - Stage 1 feed preflight
+
+Stage 1 now has an approval-gated offline preflight for the future keyed
+Advanced Trade WebSocket data feed.
+
+- Added `stage1FeedPreflight` and the MCP tool
+  `coinbase_stage1_feed_preflight`.
+- The preflight composes credential-shape validation with the market-data
+  subscription-plan contract.
+- Added smoke coverage for pre-approval refusal, approved preflight pass, and
+  forbidden channel refusal without leaking secret values.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.21.0 - Stage 1 credential shape validator
 
 Stage 1 now has a post-approval, offline credential-shape validator for the

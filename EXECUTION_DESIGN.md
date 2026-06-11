@@ -224,6 +224,12 @@ name and non-empty PEM private-key shape. It returns booleans/status only:
 no credential values, lengths, fingerprints, JWTs, sockets, orders, or keyed
 client implementation.
 
+`coinbase_stage1_feed_preflight` is the approval-gated offline preflight that a
+future connector should satisfy before JWT/socket implementation. It composes
+credential-shape validation with the subscription-plan contract and reports a
+single preflight verdict. It still generates no JWT, opens no socket, places no
+orders, and returns no credential values.
+
 Any future keyed WS connector must call `requireStage1KeyedWsApproval` before
 reading credential material, opening a socket, or producing live evidence
 manifests. The guard is fail-closed and its approved scope is market data only;
@@ -295,8 +301,8 @@ Operator actions:
 - No keyed Advanced Trade WebSocket data-feed client until the Stage 1 approval
   phrase is explicitly provided. The current repository includes only offline
   approval/audit/ingest/readiness scaffolding, an offline subscription-plan
-  contract, a post-approval credential-shape validator, a fail-closed future
-  entrypoint, and an official-docs review.
+  contract, a post-approval credential-shape validator and feed preflight, a
+  fail-closed future entrypoint, and an official-docs review.
 
 Pass 2 implemented `coinbase_confirm_live` as a stub, preview reconciliation as
 a pure diff, and the PAPER P&L ledger. Future LIVE work still requires a fresh

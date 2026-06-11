@@ -43,6 +43,7 @@ import {
 import { validateStage1CredentialMaterial } from "../src/stage1-credentials.js";
 import { stage1FeedAudit } from "../src/stage1-feed-audit.js";
 import { stage1IngestFrames } from "../src/stage1-ingest.js";
+import { stage1FeedPreflight } from "../src/stage1-preflight.js";
 import {
   createStage1KeyedWsFrameSource,
   STAGE1_KEYED_WS_NOT_IMPLEMENTED
@@ -470,6 +471,66 @@ async function offlineSuite() {
     assert.match(result.reasons.join("; "), /PEM private key/);
     assert.doesNotMatch(serialized, /secret-test-material/);
     assert.doesNotMatch(serialized, /bad-key/);
+  });
+
+  await check("Stage 1 feed preflight refuses before approval without leaking secrets", () => {
+    const env = {
+      [STAGE1_APPROVAL_ENV]: "not-approved",
+      [STAGE1_CREDENTIAL_ENVS[0]]: "organizations/example-org/apiKeys/example-key",
+      [STAGE1_CREDENTIAL_ENVS[1]]: "-----BEGIN EC PRIVATE KEY-----\nsecret-test-material\n-----END EC PRIVATE KEY-----"
+    };
+    assert.throws(
+      () => stage1FeedPreflight({ env, productIds: ["BTC-USD"] }),
+      err => {
+        const serialized = JSON.stringify(err, Object.getOwnPropertyNames(err));
+        assert.equal(err.code, "STAGE1_KEYED_WS_APPROVAL_REQUIRED");
+        assert.equal(err.networkTouched, false);
+        assert.doesNotMatch(serialized, /secret-test-material/);
+        assert.doesNotMatch(serialized, /example-key/);
+        return true;
+      }
+    );
+  });
+
+  await check("Stage 1 feed preflight combines approved credentials and subscription plan", () => {
+    const env = {
+      [STAGE1_APPROVAL_ENV]: STAGE1_APPROVAL_PHRASE,
+      [STAGE1_CREDENTIAL_ENVS[0]]: "organizations/example-org/apiKeys/example-key",
+      [STAGE1_CREDENTIAL_ENVS[1]]: "-----BEGIN EC PRIVATE KEY-----\nsecret-test-material\n-----END EC PRIVATE KEY-----"
+    };
+    const result = stage1FeedPreflight({
+      env,
+      productIds: ["btc-usd", "BTC-USD"],
+      channels: ["l2_data", "ticker", "market_trades"]
+    });
+    const serialized = JSON.stringify(result);
+    assert.equal(result.offlineOnly, true);
+    assert.equal(result.networkTouched, false);
+    assert.equal(result.keyedClientImplemented, false);
+    assert.equal(result.jwtGenerated, false);
+    assert.equal(result.preflight.pass, true);
+    assert.equal(result.preflight.safeToOpenSocketInThisFunction, false);
+    assert.equal(result.subscriptionPlan.validation.pass, true);
+    assert.deepEqual(result.subscriptionPlan.channels, ["heartbeats", "level2", "ticker", "market_trades"]);
+    assert.doesNotMatch(serialized, /secret-test-material/);
+    assert.doesNotMatch(serialized, /example-key/);
+    assert.doesNotMatch(serialized, /BEGIN EC PRIVATE KEY/);
+  });
+
+  await check("Stage 1 feed preflight rejects forbidden subscription channels", () => {
+    const env = {
+      [STAGE1_APPROVAL_ENV]: STAGE1_APPROVAL_PHRASE,
+      [STAGE1_CREDENTIAL_ENVS[0]]: "organizations/example-org/apiKeys/example-key",
+      [STAGE1_CREDENTIAL_ENVS[1]]: "-----BEGIN EC PRIVATE KEY-----\nsecret-test-material\n-----END EC PRIVATE KEY-----"
+    };
+    const result = stage1FeedPreflight({ env, productIds: ["BTC-USD"], channels: ["user"] });
+    const serialized = JSON.stringify(result);
+    assert.equal(result.preflight.pass, false);
+    assert.equal(result.credentials.pass, true);
+    assert.equal(result.subscriptionPlan.validation.pass, false);
+    assert.match(result.preflight.reasons.join("; "), /channel user is forbidden/);
+    assert.doesNotMatch(serialized, /secret-test-material/);
+    assert.doesNotMatch(serialized, /example-key/);
   });
 
   await check("Stage 1 keyed WS entrypoint refuses before approval", () => {

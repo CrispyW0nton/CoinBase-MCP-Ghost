@@ -22,6 +22,7 @@ import { stage1ApprovalStatus as coinbaseStage1ApprovalStatus } from "./stage1-a
 import { validateStage1CredentialMaterial as coinbaseStage1CredentialValidate } from "./stage1-credentials.js";
 import { stage1FeedAudit as coinbaseStage1FeedAudit } from "./stage1-feed-audit.js";
 import { stage1IngestFrames as coinbaseStage1IngestFrames } from "./stage1-ingest.js";
+import { stage1FeedPreflight as coinbaseStage1FeedPreflight } from "./stage1-preflight.js";
 import { stage1Readiness as coinbaseStage1Readiness } from "./stage1-readiness.js";
 import { createStage1SubscriptionPlan as coinbaseStage1SubscriptionPlan } from "./stage1-ws-contract.js";
 
@@ -329,6 +330,18 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_stage1_feed_preflight",
+    description: "OFFLINE ONLY. Approval-required preflight for the future keyed Advanced Trade WS data feed: credential shape plus market-data subscription contract. Prints no credential values, opens no socket, generates no JWT, and places no orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        productIds: { type: "array", items: { type: "string" }, default: ["BTC-USD"] },
+        channels: { type: "array", items: { type: "string" }, default: ["level2", "ticker", "market_trades"] },
+        includeHeartbeats: { type: "boolean", default: true }
+      }
+    }
+  },
+  {
     name: "coinbase_stage1_feed_audit",
     description: "OFFLINE ONLY. Audit supplied Coinbase Advanced Trade WS frame payloads for sequence_num gaps, duplicate/replay frames, heartbeat/liveness evidence, source:\"ws\" provenance, normalized depth/trade/tick counts, and Stage-0 readiness on WS-quality data. Opens no socket, uses no credentials, and places no orders.",
     inputSchema: {
@@ -565,6 +578,8 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(coinbaseStage1ApprovalStatus(), null, 2));
     case "coinbase_stage1_credentials_validate":
       return textResult(JSON.stringify(coinbaseStage1CredentialValidate(), null, 2));
+    case "coinbase_stage1_feed_preflight":
+      return textResult(JSON.stringify(coinbaseStage1FeedPreflight(args), null, 2));
     case "coinbase_stage1_feed_audit":
       return textResult(JSON.stringify(await coinbaseStage1FeedAudit(args), null, 2));
     case "coinbase_stage1_ingest_frames":

@@ -72,6 +72,9 @@ socket, JWT generation, or Coinbase request was added by this review.
 - `coinbase_stage1_credentials_validate` maps the documented key-name and
   private-key shapes to an offline, post-approval check. It never returns
   credential values and does not generate JWTs or open sockets.
+- `coinbase_stage1_feed_preflight` composes the credential-shape check with the
+  subscription-plan contract before any future approved implementation can add
+  JWT generation or socket behavior.
 - `createStage1KeyedWsFrameSource` is the placeholder to replace after
   approval and docs re-check.
 - `coinbase_stage1_subscription_plan` plans and validates subscribe-message
