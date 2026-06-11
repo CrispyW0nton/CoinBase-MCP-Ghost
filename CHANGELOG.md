@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.34.0 - Stage 1 exact journal append evidence
+
+Stage 1 manifests now identify the exact JSONL journal rows written by an
+accepted ingest.
+
+- `coinbase_stage1_ingest_frames` records `journalAppendEvidence` with
+  append-window line bounds, row count, path, and stable SHA-256 digest.
+- `coinbase_stage1_readiness` verifies that exact journal append window before
+  accepting live manifest evidence.
+- Added smoke coverage for a tampered journal append-window digest.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.33.0 - Stage 1 journal evidence reconciliation
 
 Stage 1 readiness now verifies that live manifest journal claims are backed by

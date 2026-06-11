@@ -118,9 +118,9 @@ Leave this window open while you use the MCP.
 | `coinbase_stage1_credentials_validate` | **Offline only and approval required.** After the exact Stage 1 approval phrase is present, reads proposed credential env vars and validates only key-name/PEM shape. Prints no values, opens no socket, generates no JWT, and does not implement the keyed client. |
 | `coinbase_stage1_feed_preflight` | **Offline only and approval required.** Combines credential-shape validation with the market-data subscription contract for the future keyed feed. Prints no credential values, opens no socket, generates no JWT, and places no orders. |
 | `coinbase_stage1_feed_audit` | **Offline only.** Audits supplied Coinbase Advanced Trade WS frame payloads for `sequence_num` gaps, duplicate/replay frames, heartbeat/liveness evidence, `source:"ws"` provenance, normalized market-data counts, and Stage-0 readiness on WS-quality data. Opens no socket and uses no credentials. |
-| `coinbase_stage1_ingest_frames` | **Offline only.** Converts supplied clean WS frame payloads into strict-provenance JSONL journal rows plus a Stage 1 manifest. Refuses gapped/dirty windows by default. Opens no socket and uses no credentials. |
+| `coinbase_stage1_ingest_frames` | **Offline only.** Converts supplied clean WS frame payloads into strict-provenance JSONL journal rows plus a Stage 1 manifest with raw-frame and exact journal-append evidence. Refuses gapped/dirty windows by default. Opens no socket and uses no credentials. |
 | `coinbase_stage1_manifest_audit` | **Offline only.** Audits Stage 1 manifests and `raw-frames.jsonl` archives for digest/frame-count integrity, then re-derives counts, frame evidence, and provenance from the archive. Opens no socket and uses no credentials. |
-| `coinbase_stage1_readiness` | **Offline only.** Reports the full Stage 1 gate: approval status, WS-only journal quality, gap count, Stage-0 readiness, and whether a completed live keyed WS manifest exists. |
+| `coinbase_stage1_readiness` | **Offline only.** Reports the full Stage 1 gate: approval, WS-only journal quality, gap count, Stage-0 readiness, and non-test live manifest evidence with archive, journal-append, and preflight checks. |
 | `coinbase_stage1_subscription_plan` | **Offline only.** Builds and validates the future market-data subscribe-message plan: market endpoint only, one channel per message, heartbeats included, user/trading channels rejected, no JWT generation and no socket. |
 | `coinbase_record` | Long OBSERVE recorder. Samples the live DOM order book/trades tape, writes fully-provenanced events, reconnects on transient tab/session failures, and writes `recordings/<symbol>-<UTC>/manifest.json`. No clicks, REST, SDK, sockets, or orders. |
 | `coinbase_recon` | One-shot deep recon → `recon/<symbol>-<ts>/` (`dom-map.json`, `network-map.json`, `behavioral.json`, `screenshots/`, `RECON_REPORT.md`). Never submits an order. |
@@ -238,6 +238,7 @@ must include concrete frame evidence: nonzero frames and journal writes, zero
 parse/unsequenced/duplicate/out-of-order/rejected rows, heartbeat evidence,
 sequence range, raw frame SHA-256 digest with matching archive, a readable
 `journalPath` containing enough clean WS rows for the claimed appended rows,
+verified `journalAppendEvidence` line bounds/digest for the exact rows written,
 100% clean provenance, archive-derived counts/evidence/provenance that match
 the manifest summary, and a secret-free passed `coinbase_stage1_feed_preflight`
 snapshot whose `generatedAt` is no later than the manifest start and whose

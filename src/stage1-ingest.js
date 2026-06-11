@@ -7,7 +7,7 @@ import {
   parseStage1Frames,
   stage1FeedAudit
 } from "./stage1-feed-audit.js";
-import { writeRawFrameArchive } from "./stage1-frame-evidence.js";
+import { stableJsonDigest, writeRawFrameArchive } from "./stage1-frame-evidence.js";
 
 const DEFAULT_SYMBOL = "BTC-USD";
 
@@ -61,21 +61,31 @@ export async function stage1IngestFrames(args = {}) {
   }
 
   const journal = new JsonlJournal({ baseDir: journalDir, symbol, strictProvenance: true });
+  const journalPath = journal.path();
+  const journalStartLine = await countJsonlLines(journalPath);
   const appendResults = [];
   for (const evt of parsed.events) {
     appendResults.push(journal.append(evt));
   }
   await journal.close();
+  const writtenEvents = parsed.serializedEvents.filter((_, index) => appendResults[index]?.written);
 
   manifest.status = "complete";
   manifest.ingested = true;
   manifest.refused = false;
   manifest.endedAt = new Date().toISOString();
-  manifest.journalPath = journal.path();
+  manifest.journalPath = journalPath;
   manifest.journalStats = journal.stats();
   manifest.appended = {
     written: appendResults.filter(item => item?.written).length,
     rejected: appendResults.filter(item => item?.rejected).length
+  };
+  manifest.journalAppendEvidence = {
+    path: journalPath,
+    startLine: manifest.appended.written ? journalStartLine + 1 : journalStartLine,
+    endLine: journalStartLine + manifest.appended.written,
+    rows: manifest.appended.written,
+    sha256: stableJsonDigest(writtenEvents)
   };
   manifest.counts.journalRejected = manifest.appended.rejected;
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
@@ -85,11 +95,20 @@ export async function stage1IngestFrames(args = {}) {
     refused: false,
     manifestPath,
     rawFrameArchivePath: path.join(outputDir, rawFrameArchive.path),
-    journalPath: journal.path(),
+    journalPath,
     journalStats: journal.stats(),
     appended: manifest.appended,
     audit
   };
+}
+
+async function countJsonlLines(file) {
+  try {
+    const text = await fs.readFile(file, "utf8");
+    return text.split(/\r?\n/).filter(Boolean).length;
+  } catch {
+    return 0;
+  }
 }
 
 function baseManifest({ symbol, startedAt, frameFile, journalDir, outputDir, rawFrames, rawFrameArchive, parsed, audit, manifestMeta = {} }) {

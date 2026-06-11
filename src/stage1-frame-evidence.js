@@ -3,9 +3,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 export function rawFrameDigest(rawFrames = []) {
+  return stableJsonDigest(rawFrames);
+}
+
+export function stableJsonDigest(value) {
   return crypto
     .createHash("sha256")
-    .update(stableJson(rawFrames))
+    .update(stableJson(value))
     .digest("hex");
 }
 

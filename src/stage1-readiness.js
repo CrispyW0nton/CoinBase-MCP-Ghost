@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { datasetStatus } from "./replay.js";
 import { stage1ApprovalStatus } from "./stage1-approval.js";
-import { inspectRawFrameArchive } from "./stage1-frame-evidence.js";
+import { inspectRawFrameArchive, stableJsonDigest } from "./stage1-frame-evidence.js";
 import { validateJournalProvenance } from "./journal.js";
 import {
   deriveStage1ArchiveEvidence,
@@ -133,6 +133,7 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
       startedAt: manifest.startedAt || null,
       endedAt: manifest.endedAt || null,
       journalPath: manifest.journalPath || null,
+      journalAppendEvidence: manifest.journalAppendEvidence || null,
       journalEvidence
     });
   }
@@ -164,10 +165,16 @@ async function inspectManifestJournal({ manifest }) {
     invalid: 0,
     symbolRows: 0,
     cleanWsRows: 0,
+    appendWindow: {
+      present: false,
+      verified: false,
+      reason: "journal append evidence missing"
+    },
     reason: null
   };
   try {
     const text = await fs.readFile(resolved, "utf8");
+    const events = [];
     for (const line of text.split(/\r?\n/)) {
       if (!line.trim()) continue;
       evidence.rows++;
@@ -176,8 +183,10 @@ async function inspectManifestJournal({ manifest }) {
         event = JSON.parse(line);
       } catch {
         evidence.invalid++;
+        events.push(null);
         continue;
       }
+      events.push(event);
       if (event.symbol !== manifest.symbol) continue;
       evidence.symbolRows++;
       const provenance = validateJournalProvenance(event);
@@ -189,6 +198,7 @@ async function inspectManifestJournal({ manifest }) {
         evidence.cleanWsRows++;
       }
     }
+    evidence.appendWindow = verifyJournalAppendWindow({ manifest, events, journalPath: resolved });
     return evidence;
   } catch (err) {
     return {
@@ -197,6 +207,52 @@ async function inspectManifestJournal({ manifest }) {
       reason: `journal unreadable: ${err.message}`
     };
   }
+}
+
+function verifyJournalAppendWindow({ manifest, events, journalPath }) {
+  const append = manifest.journalAppendEvidence;
+  if (!append || typeof append !== "object") {
+    return {
+      present: false,
+      verified: false,
+      reason: "journal append evidence missing"
+    };
+  }
+  const startLine = Number(append.startLine);
+  const endLine = Number(append.endLine);
+  const rows = Number(append.rows);
+  const expectedSha = append.sha256;
+  const appendPath = typeof append.path === "string"
+    ? path.resolve(process.cwd(), append.path)
+    : null;
+  const reasons = [];
+  if (appendPath !== journalPath) reasons.push("journal append path does not match manifest journalPath");
+  if (!Number.isSafeInteger(startLine) || startLine < 1) reasons.push("journal append startLine is invalid");
+  if (!Number.isSafeInteger(endLine) || endLine < startLine - 1) reasons.push("journal append endLine is invalid");
+  if (!Number.isSafeInteger(rows) || rows < 0) reasons.push("journal append row count is invalid");
+  if (typeof expectedSha !== "string" || !/^[a-f0-9]{64}$/.test(expectedSha)) {
+    reasons.push("journal append sha256 is missing or invalid");
+  }
+  const windowEvents = reasons.length ? [] : events.slice(startLine - 1, endLine);
+  const actualSha = stableJsonDigest(windowEvents);
+  if (!reasons.length && windowEvents.length !== rows) {
+    reasons.push("journal append window row count does not match evidence");
+  }
+  if (!reasons.length && actualSha !== expectedSha) {
+    reasons.push("journal append window digest does not match evidence");
+  }
+  return {
+    present: true,
+    verified: reasons.length === 0,
+    pathMatches: appendPath === journalPath,
+    startLine,
+    endLine,
+    rows: windowEvents.length,
+    expectedRows: rows,
+    sha256: actualSha,
+    expectedSha,
+    reason: reasons.length ? reasons.join("; ") : null
+  };
 }
 
 function stage1LiveEvidenceGate(manifests) {
@@ -244,6 +300,9 @@ function validateStage1LiveManifestEvidence(manifest) {
     }
     if (manifest.journalEvidence.symbolRows < manifest.appendedWritten) {
       reasons.push(`manifest journal symbol rows ${manifest.journalEvidence.symbolRows} < appended rows ${manifest.appendedWritten ?? "unknown"}`);
+    }
+    if (manifest.journalEvidence.appendWindow?.verified !== true) {
+      reasons.push(`manifest journal append window is not verified: ${manifest.journalEvidence.appendWindow?.reason || "unknown"}`);
     }
   }
   if (manifest.gaps !== 0) reasons.push(`manifest gaps ${manifest.gaps} > 0`);
