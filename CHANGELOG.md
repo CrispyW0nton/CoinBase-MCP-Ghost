@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.25.0 - Stage 1 raw frame digest evidence
+
+Stage 1 frame evidence now includes a deterministic digest for the supplied raw
+WS frame window.
+
+- Added `frameEvidence.rawFrameSha256` to feed-audit and ingest manifests.
+- Stage 1 feed-audit reports now print the raw frame SHA-256 digest.
+- Stage 1 readiness requires future live manifests to carry a valid raw-frame
+  digest before live evidence can pass.
+- Added smoke coverage for digest presence and invalid-digest live-evidence
+  refusal.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.24.0 - Stage 1 preflight evidence gate
 
 Stage 1 readiness now requires future live keyed WS manifests to preserve the

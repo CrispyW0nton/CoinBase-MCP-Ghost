@@ -649,6 +649,7 @@ async function offlineSuite() {
     assert.equal(audit.frameEvidence.channels.l2_data, 1);
     assert.deepEqual(audit.frameEvidence.sequenceRange, { first: 9, last: 12 });
     assert.deepEqual(audit.frameEvidence.heartbeatCounterRange, { first: 1, last: 1 });
+    assert.match(audit.frameEvidence.rawFrameSha256, /^[a-f0-9]{64}$/);
     assert.equal(audit.provenance.pctClean, 100);
     assert.equal(audit.stage0Readiness.verdict, "NOT-READY");
     assert.match(audit.stage0Readiness.reasons.join("; "), /paired observations/);
@@ -789,6 +790,7 @@ async function offlineSuite() {
     assert.equal(manifest.frameEvidence.channels.level2, 1);
     assert.deepEqual(manifest.frameEvidence.sequenceRange, { first: 29, last: 31 });
     assert.deepEqual(manifest.frameEvidence.heartbeatCounterRange, { first: 1, last: 1 });
+    assert.match(manifest.frameEvidence.rawFrameSha256, /^[a-f0-9]{64}$/);
     assert.equal(manifest.safety.noCredentials, true);
     assert.equal(manifest.networkTouched, false);
   });
@@ -1047,6 +1049,55 @@ async function offlineSuite() {
     assert.equal(readiness.liveEvidenceGate.pass, false);
     assert.match(readiness.liveEvidenceGate.reasons.join("; "), /frameEvidence is missing/);
     assert.equal(readiness.fullStage1Gate.pass, false);
+  });
+
+  await check("Stage 1 readiness rejects live-flagged manifests with invalid raw frame digest", async () => {
+    const now = new Date().toISOString();
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-frame-digest-"));
+    async function* frameSource() {
+      yield stage1Heartbeat(84, 1, now);
+      yield {
+        channel: "level2",
+        sequence_num: 85,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      };
+      yield {
+        channel: "ticker",
+        sequence_num: 86,
+        timestamp: now,
+        events: [{ tickers: [{ product_id: "BTC-USD", best_bid: "100", best_ask: "102", price: "101" }] }]
+      };
+    }
+    const journalDir = path.join(baseDir, "journal");
+    const recordingsDir = path.join(baseDir, "recordings");
+    const preflight = stage1FeedPreflight({
+      env: stage1ApprovedCredentialEnv(),
+      productIds: ["BTC-USD"],
+      channels: ["level2", "ticker"]
+    });
+    const recorded = await recordStage1FrameSource({
+      frameSource: frameSource(),
+      journalDir,
+      outputRoot: recordingsDir,
+      manifestMeta: {
+        offlineOnly: false,
+        networkTouched: true,
+        keyedClientImplemented: true,
+        liveWsFlowObserved: true,
+        evidence: { preflight, testOnly: true, reason: "simulated malformed digest" }
+      }
+    });
+    const manifest = JSON.parse(fs.readFileSync(recorded.manifestPath, "utf8"));
+    manifest.frameEvidence.rawFrameSha256 = "not-a-sha";
+    fs.writeFileSync(recorded.manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+
+    const readiness = await stage1Readiness({ journalDir, recordingsDir, horizonObservations: 1 });
+    assert.equal(readiness.liveEvidenceGate.pass, false);
+    assert.match(readiness.liveEvidenceGate.reasons.join("; "), /rawFrameSha256 is missing or invalid/);
   });
 }
 

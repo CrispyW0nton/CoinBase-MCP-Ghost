@@ -216,7 +216,9 @@ backfills, and acceptance tests, but it is not evidence that live Coinbase WS
 data is flowing until those frames come from the approved keyed client.
 The Stage 1 manifest records `frameEvidence` with raw channel counts, the
 observed `sequence_num` range, and the heartbeat-counter range so a future live
-capture can be reviewed without reparsing source frames.
+capture can be reviewed without reparsing source frames. It also records a
+deterministic `rawFrameSha256` digest over the supplied raw frame window so the
+exact evidence window can be identified later.
 
 `stage1:readiness` is the full Stage 1 gate reporter. It requires approval,
 WS-only high-confidence journal rows, zero gap events, Stage-0 readiness on the
@@ -224,7 +226,7 @@ WS-quality data, and a completed live keyed WS manifest. Offline fixture ingests
 can exercise the path, but they do not unlock Stage 2. A future live manifest
 must include concrete frame evidence: nonzero frames and journal writes, zero
 parse/unsequenced/duplicate/out-of-order/rejected rows, heartbeat evidence,
-sequence range, 100% clean provenance, and a secret-free passed
+sequence range, raw frame SHA-256 digest, 100% clean provenance, and a secret-free passed
 `coinbase_stage1_feed_preflight` snapshot.
 
 Future keyed feed code must call `requireStage1KeyedWsApproval` before it opens

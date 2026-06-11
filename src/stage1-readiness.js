@@ -179,6 +179,9 @@ function validateStage1LiveManifestEvidence(manifest) {
     if ((frameEvidence.channels?.heartbeats ?? 0) <= 0) {
       reasons.push("manifest frameEvidence has no heartbeat frames");
     }
+    if (typeof frameEvidence.rawFrameSha256 !== "string" || !/^[a-f0-9]{64}$/.test(frameEvidence.rawFrameSha256)) {
+      reasons.push("manifest frameEvidence rawFrameSha256 is missing or invalid");
+    }
     if (!Number.isFinite(frameEvidence.heartbeatCounterRange?.first) || !Number.isFinite(frameEvidence.heartbeatCounterRange?.last)) {
       reasons.push("manifest frameEvidence heartbeatCounterRange is incomplete");
     } else if (frameEvidence.heartbeatCounterRange.last < frameEvidence.heartbeatCounterRange.first) {

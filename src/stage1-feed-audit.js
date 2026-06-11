@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -83,7 +84,8 @@ export function parseStage1Frames({ rawFrames = [], symbol = DEFAULT_SYMBOL } = 
   const frameEvidence = {
     channels: {},
     sequenceRange: { first: null, last: null },
-    heartbeatCounterRange: { first: null, last: null }
+    heartbeatCounterRange: { first: null, last: null },
+    rawFrameSha256: rawFrameDigest(rawFrames)
   };
   const provenance = {
     totalEvents: 0,
@@ -185,6 +187,20 @@ export async function loadStage1FrameFile(frameFile) {
   if (!frameFile) return [];
   const text = await fs.readFile(path.resolve(process.cwd(), frameFile), "utf8");
   return text.split(/\r?\n/).filter(Boolean);
+}
+
+function rawFrameDigest(rawFrames) {
+  return crypto
+    .createHash("sha256")
+    .update(stableJson(rawFrames))
+    .digest("hex");
+}
+
+function stableJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys.map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
 }
 
 function coerceFrame(raw) {
@@ -295,6 +311,7 @@ async function writeStage1FeedAuditReport(result, { outputDir }) {
     `- Heartbeat counter gaps: ${result.frames.heartbeatCounterGaps}`,
     `- Sequence range: ${rangeText(result.frameEvidence?.sequenceRange)}`,
     `- Heartbeat counter range: ${rangeText(result.frameEvidence?.heartbeatCounterRange)}`,
+    `- Raw frame SHA-256: ${result.frameEvidence?.rawFrameSha256 || "n/a"}`,
     `- L2 updates: ${result.counts.l2}`,
     `- Ticks: ${result.counts.ticks}`,
     `- Trades: ${result.counts.trades}`,
