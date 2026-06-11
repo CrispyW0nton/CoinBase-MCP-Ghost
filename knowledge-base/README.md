@@ -30,7 +30,7 @@ Coinbase Advanced Trade page, what am I allowed to conclude and do?"*
 |---|---|---|
 | Default to inaction; OBSERVE_ONLY + kill switch | Taleb; Kahneman Ch.26 | `src/config.js`, `placeOrder` |
 | Never touch order-path credentials/keys; read-only execution default | Antonopoulos; Ammous Ch.10 | `src/coinbase.js`, `placeOrder` |
-| Keyed WS data-feed credentials require explicit Stage 1 approval and may not authorize execution | Kleppmann; Harris; Taleb | `src/stage1-approval.js`, `src/stage1-feed-audit.js`, `src/stage1-ingest.js`, `research/STAGE1_CREDENTIALS_DECISION.md` |
+| Keyed WS data-feed credentials require explicit Stage 1 approval and may not authorize execution | Kleppmann; Harris; Taleb | `src/stage1-approval.js`, `src/stage1-feed-audit.js`, `src/stage1-ingest.js`, `src/stage1-readiness.js`, `research/STAGE1_CREDENTIALS_DECISION.md` |
 | Prices/sizes are decimals, never floats | Harris Ch.4; AFML Ch.2 | `src/schema.js` |
 | Size by edge & risk (½-Kelly), cap at maxNotional | Chan Ch.8; Grinold&Kahn | `placeOrder` risk gate |
 | Treat the feed as at-least-once; dedupe on seq | Kleppmann Ch.11 | `marketStream` gap detector |

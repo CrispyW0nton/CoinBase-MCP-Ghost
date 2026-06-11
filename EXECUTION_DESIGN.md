@@ -190,6 +190,12 @@ fixture/backfill infrastructure only. It does not prove the live keyed feed is
 working until the supplied frames are produced by the human-approved Advanced
 Trade WS client.
 
+`coinbase_stage1_readiness` is the full Stage 1 gate reporter. It combines the
+approval gate, journal inventory, gap events, Stage-0 breadth/quantity checks,
+and Stage 1 manifests. Stage 2 cannot begin until this reporter passes: enough
+clean sequenced WS data must exist, and at least one completed manifest must
+prove live keyed WS flow rather than offline fixture ingest.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to

@@ -47,6 +47,11 @@ write strict `source:"ws"` journal rows plus a manifest only after the
 WS-quality gate passes. They still do not prove live WS flow until the frames
 come from the approved keyed client.
 
+`npm run stage1:readiness` and `coinbase_stage1_readiness` are the full Stage 1
+gate reporter. They require approval, clean WS-only journal data, no gap events,
+Stage-0 readiness on WS-quality data, and a completed live keyed WS manifest.
+Offline fixture ingests remain test evidence only.
+
 ## Proposed credential env names
 
 These names are placeholders for the next implementation pass and are not used
@@ -96,9 +101,10 @@ It does not approve:
    frames, zero gaps, 100% clean WS provenance, and real L2 depth updates.
 7. Use `coinbase_stage1_ingest_frames` or the same underlying ingest path to
    append only clean sequenced events to JSONL with a manifest.
-8. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
+8. Pass `coinbase_stage1_readiness` before Stage 2 starts.
+9. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
    deflated Sharpe, and realistic costs before any execution research.
-9. Leave LIVE trading disconnected until later risk, kill-switch, and human
+10. Leave LIVE trading disconnected until later risk, kill-switch, and human
    approval gates are passed.
 
 ## Knowledge-base rationale

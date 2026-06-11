@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.11.0 - Stage 1 readiness gate reporter
+
+Stage 1 now has a single offline readiness command that reports whether the
+full data-feed gate is actually met.
+
+- Added `coinbase_stage1_readiness` and `npm run stage1:readiness`.
+- The reporter combines credential approval status, journal dataset status,
+  WS-only/high-confidence/gap-free data checks, Stage-0 readiness on WS-quality
+  data, and Stage 1 manifest inspection.
+- Offline fixture ingests are explicitly not treated as live WS-flow evidence.
+  The full Stage 1 gate requires a completed live keyed WS manifest in addition
+  to enough clean sequenced journal data.
+- Added smoke coverage for empty journals and fixture-only ingests.
+
 ## 0.10.0 - Stage 1 offline WS journal ingest
 
 Stage 1 now has an offline ingest path that writes supplied clean WS frames into

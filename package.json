@@ -1,6 +1,6 @@
 {
   "name": "coinbase-mcp-ghost",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "A local read-only MCP server that attaches (as a 'ghost') to an already-signed-in Coinbase Advanced Trade tab over the Chrome DevTools Protocol for market-data and portfolio reconnaissance. OBSERVE_ONLY by default — no trading, no API keys, no auth flow.",
   "type": "module",
   "bin": {
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node ./src/index.js",
-    "check": "node --check ./src/index.js && node --check ./src/chrome.js && node --check ./src/tools.js && node --check ./src/coinbase.js && node --check ./src/schema.js && node --check ./src/signal.js && node --check ./src/replay.js && node --check ./src/audit.js && node --check ./src/record.js && node --check ./src/stage-a.js && node --check ./src/stage1-approval.js && node --check ./src/stage1-feed-audit.js && node --check ./src/stage1-ingest.js && node --check ./src/journal.js && node --check ./src/config.js && node --check ./tests/smoke.mjs",
+    "check": "node --check ./src/index.js && node --check ./src/chrome.js && node --check ./src/tools.js && node --check ./src/coinbase.js && node --check ./src/schema.js && node --check ./src/signal.js && node --check ./src/replay.js && node --check ./src/audit.js && node --check ./src/record.js && node --check ./src/stage-a.js && node --check ./src/stage1-approval.js && node --check ./src/stage1-feed-audit.js && node --check ./src/stage1-ingest.js && node --check ./src/stage1-readiness.js && node --check ./src/journal.js && node --check ./src/config.js && node --check ./tests/smoke.mjs",
     "smoke": "node ./tests/smoke.mjs",
     "backtest": "node ./src/replay.js",
     "dataset": "node ./src/replay.js --status",
@@ -17,7 +17,8 @@
     "stage-a": "node ./src/stage-a.js",
     "stage1:approval": "node ./src/stage1-approval.js",
     "stage1:feed-audit": "node ./src/stage1-feed-audit.js",
-    "stage1:ingest": "node ./src/stage1-ingest.js"
+    "stage1:ingest": "node ./src/stage1-ingest.js",
+    "stage1:readiness": "node ./src/stage1-readiness.js"
   },
   "dependencies": {
     "decimal.js": "^10.6.0",

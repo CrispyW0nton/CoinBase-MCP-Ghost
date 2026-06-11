@@ -21,6 +21,7 @@ import { stageAAnalysis as coinbaseStageA } from "./stage-a.js";
 import { stage1ApprovalStatus as coinbaseStage1ApprovalStatus } from "./stage1-approval.js";
 import { stage1FeedAudit as coinbaseStage1FeedAudit } from "./stage1-feed-audit.js";
 import { stage1IngestFrames as coinbaseStage1IngestFrames } from "./stage1-ingest.js";
+import { stage1Readiness as coinbaseStage1Readiness } from "./stage1-readiness.js";
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:9222";
 
@@ -357,6 +358,26 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_stage1_readiness",
+    description: "OFFLINE ONLY. Report the full Stage 1 gate over journal data and manifests: credential approval, WS-only/high-confidence/gap-free data, Stage-0 readiness on WS-quality data, and live keyed WS manifest evidence. Opens no socket and places no orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        journalDir: { type: "string", default: "journal" },
+        recordingsDir: { type: "string", default: "recordings" },
+        files: { type: "array", items: { type: "string" } },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        horizonSeconds: { type: "number" },
+        horizonObservations: { type: "number", default: 1 },
+        depthLevels: { type: "number", default: 10 },
+        trainFraction: { type: "number", default: 0.7 },
+        trials: { type: "number", default: 1 }
+      }
+    }
+  },
+  {
     name: "coinbase_attach",
     description: "Attach (fail-closed) to an already-open, already-signed-in Coinbase Advanced Trade tab in the debug profile. Returns { attached, signedIn, tab, probeResults }. Never falls back to an unrelated tab.",
     inputSchema: {
@@ -522,6 +543,8 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbaseStage1FeedAudit(args), null, 2));
     case "coinbase_stage1_ingest_frames":
       return textResult(JSON.stringify(await coinbaseStage1IngestFrames(args), null, 2));
+    case "coinbase_stage1_readiness":
+      return textResult(JSON.stringify(await coinbaseStage1Readiness(args), null, 2));
     case "coinbase_recon":
       return textResult(JSON.stringify(await coinbaseRecon(args), null, 2));
     case "coinbase_market_stream":

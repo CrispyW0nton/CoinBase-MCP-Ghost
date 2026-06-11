@@ -41,6 +41,7 @@ import {
 } from "../src/stage1-approval.js";
 import { stage1FeedAudit } from "../src/stage1-feed-audit.js";
 import { stage1IngestFrames } from "../src/stage1-ingest.js";
+import { stage1Readiness } from "../src/stage1-readiness.js";
 
 let failures = 0;
 function check(name, fn) {
@@ -476,6 +477,53 @@ async function offlineSuite() {
     assert.equal(manifest.status, "refused");
     assert.equal(manifest.ingested ?? false, false);
     assert.equal(fs.existsSync(path.join(baseDir, "journal")), false);
+  });
+
+  await check("Stage 1 readiness refuses empty WS journal", async () => {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-empty-"));
+    const result = await stage1Readiness({
+      journalDir: path.join(baseDir, "journal"),
+      recordingsDir: path.join(baseDir, "recordings"),
+      horizonObservations: 1
+    });
+    assert.equal(result.offlineOnly, true);
+    assert.equal(result.networkTouched, false);
+    assert.equal(result.dataGate.pass, false);
+    assert.equal(result.fullStage1Gate.pass, false);
+    assert.match(result.fullStage1Gate.reasons.join("; "), /credential approval missing/);
+    assert.match(result.dataGate.reasons.join("; "), /no journal events selected/);
+  });
+
+  await check("Stage 1 readiness does not treat offline fixtures as live evidence", async () => {
+    const now = new Date().toISOString();
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-ready-"));
+    const journalDir = path.join(baseDir, "journal");
+    const recordingsDir = path.join(baseDir, "recordings");
+    const frames = [
+      {
+        channel: "level2",
+        sequence_num: 50,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      },
+      {
+        channel: "ticker",
+        sequence_num: 51,
+        timestamp: now,
+        events: [{ tickers: [{ product_id: "BTC-USD", best_bid: "100", best_ask: "102", price: "101" }] }]
+      }
+    ];
+    await stage1IngestFrames({ frames, journalDir, outputRoot: recordingsDir, horizonObservations: 1 });
+    const result = await stage1Readiness({ journalDir, recordingsDir, horizonObservations: 1 });
+    assert.equal(result.dataGate.bySource.ws, 3);
+    assert.equal(result.dataGate.gapEvents, 0);
+    assert.equal(result.dataGate.dataQualityCeiling, "sequenced/high-confidence");
+    assert.equal(result.liveEvidenceGate.pass, false);
+    assert.match(result.liveEvidenceGate.reasons.join("; "), /no completed live keyed WS Stage 1 manifest observed/);
+    assert.equal(result.fullStage1Gate.pass, false);
   });
 }
 
