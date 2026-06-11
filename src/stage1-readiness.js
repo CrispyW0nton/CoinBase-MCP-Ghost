@@ -228,7 +228,12 @@ function validateStage1LiveManifestEvidence(manifest) {
     if (provenance.pctClean !== 100) reasons.push(`manifest provenance pctClean ${provenance.pctClean ?? "unknown"} is not 100`);
   }
 
-  const preflight = manifest.evidence?.preflight;
+  const evidence = manifest.evidence;
+  if (evidence?.testOnly === true) {
+    reasons.push("manifest evidence is marked testOnly");
+  }
+
+  const preflight = evidence?.preflight;
   if (!preflight || typeof preflight !== "object") {
     reasons.push("manifest preflight evidence is missing");
   } else {

@@ -221,7 +221,8 @@ archive-derived counts/evidence/provenance that match the manifest summary,
 `coinbase_stage1_feed_preflight` passed before the live connector opened the
 market-data socket. The preflight evidence must include a `generatedAt`
 timestamp no later than the manifest start, and its subscription plan must
-include the manifest symbol, heartbeats, and `level2`.
+include the manifest symbol, heartbeats, and `level2`. Any manifest carrying
+`evidence.testOnly:true` is rejected as live evidence.
 
 `recordStage1FrameSource` is the reusable recorder core for the future approved
 client. It accepts an async iterable of Coinbase WS frame payloads and routes

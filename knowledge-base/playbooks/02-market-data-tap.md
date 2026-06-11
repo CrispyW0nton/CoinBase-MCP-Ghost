@@ -102,6 +102,7 @@ keyed client until the approval phrase is present.
     100% clean provenance, and a secret-free passed `coinbase_stage1_feed_preflight`
     snapshot whose `generatedAt` is no later than the manifest start and whose
     subscription plan includes the manifest symbol, heartbeats, and `level2`.
+    Reject any manifest marked `evidence.testOnly:true` as live evidence.
 19. Future approved keyed WS code should feed frames into
     `recordStage1FrameSource` so live capture uses the same audit, ingest,
     manifest, and readiness path as fixtures. Never set live evidence flags

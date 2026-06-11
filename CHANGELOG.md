@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.32.0 - Stage 1 test-only evidence rejection
+
+Stage 1 readiness now refuses live manifests that explicitly mark their evidence
+as test-only.
+
+- `coinbase_stage1_readiness` rejects live-flagged manifests with
+  `evidence.testOnly: true`.
+- The coherent live-manifest smoke fixture now omits the test-only marker, and
+  a separate smoke test proves test-only evidence is rejected.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.31.0 - Stage 1 preflight timing evidence
 
 Stage 1 preflight evidence now records when the offline preflight was produced,
