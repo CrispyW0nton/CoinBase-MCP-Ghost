@@ -5,6 +5,10 @@ import { fileURLToPath } from "node:url";
 import { datasetStatus } from "./replay.js";
 import { stage1ApprovalStatus } from "./stage1-approval.js";
 import { inspectRawFrameArchive } from "./stage1-frame-evidence.js";
+import {
+  deriveStage1ArchiveEvidence,
+  stage1ManifestIntegrityReasons
+} from "./stage1-manifest-audit.js";
 
 const DEFAULT_SYMBOL = "BTC-USD";
 
@@ -91,6 +95,12 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
     if (manifest.stage !== "Stage 1 - Real Sequenced Data Feed") continue;
     if (manifest.symbol !== symbol) continue;
     const rawFrameArchive = await inspectRawFrameArchive({ manifestFile: file, manifest });
+    const derivedFromArchive = await deriveStage1ArchiveEvidence({ manifestFile: file, manifest, symbol });
+    const archiveIntegrityReasons = stage1ManifestIntegrityReasons({
+      manifest,
+      rawFrameArchive,
+      derivedFromArchive
+    });
     manifests.push({
       file: path.relative(process.cwd(), file),
       status: manifest.status || null,
@@ -110,6 +120,11 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
       journalRejected: manifest.counts?.journalRejected ?? manifest.journalStats?.rejected ?? null,
       frameEvidence: manifest.frameEvidence || null,
       rawFrameArchive,
+      derivedFromArchive,
+      archiveIntegrity: {
+        pass: archiveIntegrityReasons.length === 0,
+        reasons: archiveIntegrityReasons
+      },
       provenance: manifest.provenance || null,
       evidence: manifest.evidence || null,
       startedAt: manifest.startedAt || null,
@@ -194,6 +209,14 @@ function validateStage1LiveManifestEvidence(manifest) {
 
   if (manifest.rawFrameArchive?.verified !== true) {
     reasons.push(`manifest raw frame archive is not verified: ${manifest.rawFrameArchive?.reason || "unknown"}`);
+  }
+  if (manifest.archiveIntegrity?.pass !== true) {
+    const integrityReasons = manifest.archiveIntegrity?.reasons?.length
+      ? manifest.archiveIntegrity.reasons
+      : ["unknown archive integrity failure"];
+    for (const reason of integrityReasons) {
+      reasons.push(`manifest archive integrity failed: ${reason}`);
+    }
   }
 
   const provenance = manifest.provenance;

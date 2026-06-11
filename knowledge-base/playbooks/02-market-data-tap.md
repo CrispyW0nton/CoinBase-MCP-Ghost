@@ -98,8 +98,9 @@ keyed client until the approval phrase is present.
     carry frame evidence: nonzero frames and journal writes, zero parse,
     unsequenced, duplicate/replayed, out-of-order, and rejected rows, heartbeat
     evidence, sequence range, raw-frame SHA-256 digest with matching archive,
-    100% clean provenance, and a secret-free passed
-    `coinbase_stage1_feed_preflight` snapshot.
+    archive-derived counts/evidence/provenance that match the manifest summary,
+    100% clean provenance, and a secret-free passed `coinbase_stage1_feed_preflight`
+    snapshot.
 19. Future approved keyed WS code should feed frames into
     `recordStage1FrameSource` so live capture uses the same audit, ingest,
     manifest, and readiness path as fixtures. Never set live evidence flags

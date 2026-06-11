@@ -90,7 +90,8 @@ socket, JWT generation, or Coinbase request was added by this review.
   and re-derives frame counts, evidence, and provenance offline before any
   archive-backed evidence is trusted.
 - `coinbase_stage1_readiness` requires live manifests to carry coherent
-  frame/provenance evidence and passed preflight evidence in addition to live
+  frame/provenance evidence, archive-derived summaries matching
+  `raw-frames.jsonl`, and passed preflight evidence in addition to live
   keyed-client flags.
 - `coinbase_stage1_feed_audit` must pass on any captured frame window.
 - `coinbase_stage1_readiness` must pass before Stage 2 can begin.

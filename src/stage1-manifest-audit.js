@@ -21,8 +21,8 @@ export async function stage1ManifestAudit({
     if (manifest.stage !== "Stage 1 - Real Sequenced Data Feed") continue;
     if (manifest.symbol !== symbol) continue;
     const rawFrameArchive = await inspectRawFrameArchive({ manifestFile: file, manifest });
-    const derivedFromArchive = await deriveFromRawFrameArchive({ manifestFile: file, manifest, symbol });
-    const reasons = manifestIntegrityReasons({ manifest, rawFrameArchive, derivedFromArchive });
+    const derivedFromArchive = await deriveStage1ArchiveEvidence({ manifestFile: file, manifest, symbol });
+    const reasons = stage1ManifestIntegrityReasons({ manifest, rawFrameArchive, derivedFromArchive });
     manifests.push({
       file: path.relative(process.cwd(), file),
       status: manifest.status || null,
@@ -62,7 +62,7 @@ export async function stage1ManifestAudit({
   };
 }
 
-async function deriveFromRawFrameArchive({ manifestFile, manifest, symbol }) {
+export async function deriveStage1ArchiveEvidence({ manifestFile, manifest, symbol }) {
   const archive = manifest.rawFrameArchive;
   if (!archive || typeof archive !== "object" || !archive.path) return null;
   try {
@@ -103,7 +103,7 @@ async function deriveFromRawFrameArchive({ manifestFile, manifest, symbol }) {
   }
 }
 
-function manifestIntegrityReasons({ manifest, rawFrameArchive, derivedFromArchive }) {
+export function stage1ManifestIntegrityReasons({ manifest, rawFrameArchive, derivedFromArchive }) {
   const reasons = [];
   const digest = manifest.frameEvidence?.rawFrameSha256;
   if (typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest)) {

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.29.0 - Stage 1 readiness archive integrity gate
+
+Stage 1 readiness now consumes the same raw-frame archive re-derivation used by
+the standalone manifest audit.
+
+- Live manifest evidence now carries `derivedFromArchive` and an
+  `archiveIntegrity` verdict inside `stage1:readiness` output.
+- `coinbase_stage1_readiness` rejects live-flagged manifests when manifest
+  counts, gap counts, `frameEvidence`, or provenance drift from
+  `raw-frames.jsonl`, even if the raw archive digest still verifies.
+- Updated the MCP tool description for `coinbase_stage1_manifest_audit`.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.28.0 - Stage 1 manifest archive re-derivation
 
 Stage 1 manifest audits now re-derive manifest summaries from archived raw

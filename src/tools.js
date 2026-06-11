@@ -383,7 +383,7 @@ export const tools = [
   },
   {
     name: "coinbase_stage1_manifest_audit",
-    description: "OFFLINE ONLY. Audit Stage 1 manifests and raw-frames.jsonl archives for digest/frame-count integrity. Opens no socket, uses no credentials, and places no orders.",
+    description: "OFFLINE ONLY. Audit Stage 1 manifests and raw-frames.jsonl archives for digest/frame-count integrity, then re-derive counts, frame evidence, and provenance from the archive. Opens no socket, uses no credentials, and places no orders.",
     inputSchema: {
       type: "object",
       properties: {

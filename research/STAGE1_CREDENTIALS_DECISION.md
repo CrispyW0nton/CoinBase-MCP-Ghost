@@ -51,8 +51,10 @@ come from the approved keyed client.
 gate reporter. They require approval, clean WS-only journal data, no gap events,
 Stage-0 readiness on WS-quality data, and a completed live keyed WS manifest.
 Offline fixture ingests remain test evidence only. Any future archive-backed
-live manifest must also pass `npm run stage1:manifest-audit`, which re-derives
-frame counts, frame evidence, and provenance from `raw-frames.jsonl`.
+live manifest must satisfy the same raw-frame archive re-derivation inside
+`coinbase_stage1_readiness` that `npm run stage1:manifest-audit` reports:
+frame counts, frame evidence, and provenance must reproduce from
+`raw-frames.jsonl`.
 
 `npm run stage1:subscription-plan` and `coinbase_stage1_subscription_plan` are
 the offline subscribe-message contract for the future approved client. They
