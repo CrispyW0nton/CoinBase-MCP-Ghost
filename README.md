@@ -196,6 +196,11 @@ prints a recommended clean-window `startDate`; use that date for future
 `dataset`, `audit`, and eventually `backtest` commands so legacy audit rows stay
 visible but excluded from research readiness.
 
+Latest committed Stage 0 audit: the full journal remains NOT-READY because it
+keeps 356 legacy rows visible, but the clean research window starting
+`2026-06-10T20:54:21.206Z` is READY on quantity/provenance. Stage A work must
+use that explicit clean `startDate`; DOM quality remains low-confidence.
+
 ---
 
 ## Long OBSERVE Recording

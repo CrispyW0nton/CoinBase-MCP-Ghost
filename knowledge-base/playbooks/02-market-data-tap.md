@@ -28,7 +28,10 @@
    reasons, and legacy/unusable-row migration notes. If legacy rows exist, use
    the report's clean-window `startDate` for future dataset/audit runs. This is
    the audit loop while the Stage 0 gate is closed.
-8. `coinbase_backtest` or `npm run backtest -- --symbol BTC-USD` — offline
+8. Once the clean-window status is READY, carry that exact `startDate` into
+   Stage A commands. Do not run the dirty full journal by accident, and do not
+   treat DOM quantity as WS quality.
+9. `coinbase_backtest` or `npm run backtest -- --symbol BTC-USD` — offline
    replay only. Measure Spearman IC chronologically (train/test), report
    breadth/autocorrelation and deflated-Sharpe controls only after the dataset
    gate passes. Keep every DOM/degraded result labeled **low-confidence /

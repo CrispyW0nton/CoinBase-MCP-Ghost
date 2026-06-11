@@ -147,6 +147,11 @@ it keeps old audit rows visible while preventing them from contaminating future
 readiness checks. It does not upgrade DOM source quality or unlock Stage A
 until the quantity and provenance gates are both met.
 
+As of the committed Stage 0 audit generated on 2026-06-11T01:47:40Z, the clean
+window beginning `2026-06-10T20:54:21.206Z` meets the quantity/provenance gate.
+Stage A may begin in a later iteration only with that explicit filter, while
+continuing to label the source as low-confidence DOM data.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to

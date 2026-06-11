@@ -40,6 +40,10 @@ rather than trying to prove an edge.
 - Audit reports now compute a recommended clean research window after the last
   legacy/missing-provenance row so old audit data can stay on disk without
   contaminating future readiness checks.
+- A 60-second OBSERVE-only recording produced a clean-window READY audit
+  (`startDate=2026-06-10T20:54:21.206Z`, 2,926 paired observations, 100% clean
+  provenance, 0 journal rejects). This opens the next iteration to Stage A only
+  when using that explicit clean window; DOM quality remains low-confidence.
 - Backtests now require 2,000 paired observations, 2,000 effective independent
   observations after autocorrelation discounting, 600 chronological test
   observations, and 0 legacy/missing-provenance rows before issuing IC metrics.
