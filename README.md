@@ -198,7 +198,7 @@ legacy/unusable-row migration note.
 ## Long OBSERVE Recording
 
 Start from an already-signed-in Advanced Trade/Portfolio tab, then run the MCP
-tool:
+tool or CLI:
 
 ```jsonc
 {
@@ -208,12 +208,17 @@ tool:
 }
 ```
 
+```powershell
+npm run record -- --durationMs 3600000 --sampleIntervalMs 1000 --healthIntervalMs 30000
+```
+
 For a first useful research dataset, record until `npm run dataset` reports
 READY. With a 1-second DOM sampler, that likely means several hours rather
 than minutes because duplicated or autocorrelated observations are discounted.
 Each run writes a manifest under `recordings/` with start/end time, counts,
 provenance breakdown, disconnects, health heartbeats, journal stats, and any
-quarantined provenance failures.
+quarantined provenance failures. `durationMs` measures the sampling window after
+the recorder has attached/navigated to the trade view.
 
 ---
 

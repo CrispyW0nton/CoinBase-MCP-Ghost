@@ -565,7 +565,7 @@ export async function record({ debugUrl, urlContains, durationMs = 60 * 60 * 100
   let tab = null;
   let view = null;
   let nextHealth = Date.now();
-  const deadline = Date.now() + Number(durationMs);
+  let deadline = null;
 
   async function connect() {
     const attached = await requireSignedInTab({ debugUrl, urlContains });
@@ -591,6 +591,7 @@ export async function record({ debugUrl, urlContains, durationMs = 60 * 60 * 100
 
   try {
     await connect();
+    deadline = Date.now() + Number(durationMs);
     while (Date.now() < deadline) {
       try {
         const sample = await collectDomOrderBook(session, symbol);

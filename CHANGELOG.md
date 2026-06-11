@@ -25,6 +25,10 @@ rather than trying to prove an edge.
   book/trades tape, writes fully-provenanced DOM events/signals, handles
   reconnects, and writes `recordings/<symbol>-<UTC>/manifest.json` with
   health, counts, provenance breakdown, disconnects, and journal stats.
+- Added `npm run record` as a CLI wrapper around the same no-click recorder for
+  long Stage 0 sessions without an MCP client.
+- Fixed recorder timing so `durationMs` measures sampling time after the first
+  successful attach/navigation, not pre-attach startup time.
 - Added `recordings/` to `.gitignore` as runtime output.
 
 ### Dataset readiness
