@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.27.0 - Stage 1 manifest archive audit
+
+Stage 1 now has a standalone offline manifest/archive integrity audit.
+
+- Added `stage1ManifestAudit`, `coinbase_stage1_manifest_audit`, and
+  `npm run stage1:manifest-audit`.
+- The audit walks Stage 1 manifests and verifies `raw-frames.jsonl` frame counts
+  and digests against `frameEvidence.rawFrameSha256`.
+- Added smoke coverage for a valid archive-backed manifest and a tampered
+  archive failure.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.26.0 - Stage 1 raw frame archive
 
 Stage 1 ingest now preserves the supplied raw WS frame window beside each

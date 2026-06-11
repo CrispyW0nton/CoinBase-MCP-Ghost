@@ -22,6 +22,7 @@ import { stage1ApprovalStatus as coinbaseStage1ApprovalStatus } from "./stage1-a
 import { validateStage1CredentialMaterial as coinbaseStage1CredentialValidate } from "./stage1-credentials.js";
 import { stage1FeedAudit as coinbaseStage1FeedAudit } from "./stage1-feed-audit.js";
 import { stage1IngestFrames as coinbaseStage1IngestFrames } from "./stage1-ingest.js";
+import { stage1ManifestAudit as coinbaseStage1ManifestAudit } from "./stage1-manifest-audit.js";
 import { stage1FeedPreflight as coinbaseStage1FeedPreflight } from "./stage1-preflight.js";
 import { stage1Readiness as coinbaseStage1Readiness } from "./stage1-readiness.js";
 import { createStage1SubscriptionPlan as coinbaseStage1SubscriptionPlan } from "./stage1-ws-contract.js";
@@ -381,6 +382,17 @@ export const tools = [
     }
   },
   {
+    name: "coinbase_stage1_manifest_audit",
+    description: "OFFLINE ONLY. Audit Stage 1 manifests and raw-frames.jsonl archives for digest/frame-count integrity. Opens no socket, uses no credentials, and places no orders.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", default: "BTC-USD" },
+        recordingsDir: { type: "string", default: "recordings" }
+      }
+    }
+  },
+  {
     name: "coinbase_stage1_readiness",
     description: "OFFLINE ONLY. Report the full Stage 1 gate over journal data and manifests: credential approval, WS-only/high-confidence/gap-free data, Stage-0 readiness on WS-quality data, and live keyed WS manifest evidence. Opens no socket and places no orders.",
     inputSchema: {
@@ -584,6 +596,8 @@ export async function callTool(name, args) {
       return textResult(JSON.stringify(await coinbaseStage1FeedAudit(args), null, 2));
     case "coinbase_stage1_ingest_frames":
       return textResult(JSON.stringify(await coinbaseStage1IngestFrames(args), null, 2));
+    case "coinbase_stage1_manifest_audit":
+      return textResult(JSON.stringify(await coinbaseStage1ManifestAudit(args), null, 2));
     case "coinbase_stage1_readiness":
       return textResult(JSON.stringify(await coinbaseStage1Readiness(args), null, 2));
     case "coinbase_stage1_subscription_plan":

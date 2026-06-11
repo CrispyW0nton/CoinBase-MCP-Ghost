@@ -85,7 +85,11 @@ keyed client until the approval phrase is present.
     `raw-frames.jsonl` archive. Do not treat ingested fixtures as live Stage 1
     evidence unless the frames came from the approved keyed Advanced Trade WS
     client.
-17. `coinbase_stage1_readiness` or `npm run stage1:readiness` — full Stage 1
+17. `coinbase_stage1_manifest_audit` or `npm run stage1:manifest-audit` —
+    offline integrity check for Stage 1 manifests and raw-frame archives. It
+    must pass for archive-backed evidence before any future live manifest is
+    trusted.
+18. `coinbase_stage1_readiness` or `npm run stage1:readiness` — full Stage 1
     gate reporter. It must pass before Stage 2 starts: explicit approval,
     WS-only/high-confidence journal rows, zero gap events, Stage-0 readiness on
     WS-quality data, and a completed live keyed WS manifest. Fixture-only
@@ -95,19 +99,19 @@ keyed client until the approval phrase is present.
     evidence, sequence range, raw-frame SHA-256 digest with matching archive,
     100% clean provenance, and a secret-free passed
     `coinbase_stage1_feed_preflight` snapshot.
-18. Future approved keyed WS code should feed frames into
+19. Future approved keyed WS code should feed frames into
     `recordStage1FrameSource` so live capture uses the same audit, ingest,
     manifest, and readiness path as fixtures. Never set live evidence flags
     unless the frames came from the approved keyed Advanced Trade WS rail.
-19. Future keyed WS code must call `requireStage1KeyedWsApproval` before
+20. Future keyed WS code must call `requireStage1KeyedWsApproval` before
     reading credential material or opening a socket. Approval authorizes market
     data only; it never authorizes REST trading, orders, stops, LIVE arming, or
     credential logging.
-20. Review `research/STAGE1_OFFICIAL_DOCS_REVIEW.md` before any implementation
+21. Review `research/STAGE1_OFFICIAL_DOCS_REVIEW.md` before any implementation
     pass. Re-check the current official Coinbase docs and resolve the documented
     JWT sample discrepancy before adding JavaScript signing or subscription
     code.
-21. `createStage1KeyedWsFrameSource` is the current fail-closed placeholder for
+22. `createStage1KeyedWsFrameSource` is the current fail-closed placeholder for
     that future connector. It must keep throwing
     `STAGE1_KEYED_WS_CLIENT_NOT_IMPLEMENTED` until human approval and a fresh
     official Coinbase docs review happen in the implementation pass.

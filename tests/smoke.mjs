@@ -43,6 +43,7 @@ import {
 import { validateStage1CredentialMaterial } from "../src/stage1-credentials.js";
 import { stage1FeedAudit } from "../src/stage1-feed-audit.js";
 import { stage1IngestFrames } from "../src/stage1-ingest.js";
+import { stage1ManifestAudit } from "../src/stage1-manifest-audit.js";
 import { stage1FeedPreflight } from "../src/stage1-preflight.js";
 import {
   createStage1KeyedWsFrameSource,
@@ -796,6 +797,10 @@ async function offlineSuite() {
     assert.ok(fs.existsSync(result.rawFrameArchivePath));
     assert.equal(manifest.safety.noCredentials, true);
     assert.equal(manifest.networkTouched, false);
+    const manifestAudit = await stage1ManifestAudit({ recordingsDir: outputRoot });
+    assert.equal(manifestAudit.verdict, "PASS");
+    assert.equal(manifestAudit.counts.manifests, 1);
+    assert.equal(manifestAudit.counts.archiveVerified, 1);
   });
 
   await check("Stage 1 ingest refuses gapped WS frames by default", async () => {
@@ -1150,6 +1155,9 @@ async function offlineSuite() {
     const readiness = await stage1Readiness({ journalDir, recordingsDir, horizonObservations: 1 });
     assert.equal(readiness.liveEvidenceGate.pass, false);
     assert.match(readiness.liveEvidenceGate.reasons.join("; "), /raw frame archive is not verified/);
+    const manifestAudit = await stage1ManifestAudit({ recordingsDir });
+    assert.equal(manifestAudit.verdict, "FAIL");
+    assert.match(manifestAudit.reasons.join("; "), /raw frame archive is not verified/);
   });
 }
 
