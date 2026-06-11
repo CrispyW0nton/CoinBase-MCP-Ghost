@@ -84,7 +84,8 @@ socket, JWT generation, or Coinbase request was added by this review.
   with fixtures.
 - Stage 1 manifests include `frameEvidence` channel counts, sequence range, and
   heartbeat-counter range plus a raw-frame SHA-256 digest for later review of
-  live-capture evidence.
+  live-capture evidence. `raw-frames.jsonl` archives preserve the matching raw
+  frame window beside each manifest.
 - `coinbase_stage1_readiness` requires live manifests to carry coherent
   frame/provenance evidence and passed preflight evidence in addition to live
   keyed-client flags.

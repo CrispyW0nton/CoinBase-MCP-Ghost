@@ -791,6 +791,9 @@ async function offlineSuite() {
     assert.deepEqual(manifest.frameEvidence.sequenceRange, { first: 29, last: 31 });
     assert.deepEqual(manifest.frameEvidence.heartbeatCounterRange, { first: 1, last: 1 });
     assert.match(manifest.frameEvidence.rawFrameSha256, /^[a-f0-9]{64}$/);
+    assert.equal(manifest.rawFrameArchive.frames, frames.length);
+    assert.equal(manifest.rawFrameArchive.sha256, manifest.frameEvidence.rawFrameSha256);
+    assert.ok(fs.existsSync(result.rawFrameArchivePath));
     assert.equal(manifest.safety.noCredentials, true);
     assert.equal(manifest.networkTouched, false);
   });
@@ -828,6 +831,8 @@ async function offlineSuite() {
     const manifest = JSON.parse(fs.readFileSync(result.manifestPath, "utf8"));
     assert.equal(manifest.status, "refused");
     assert.equal(manifest.ingested ?? false, false);
+    assert.equal(manifest.rawFrameArchive.frames, frames.length);
+    assert.ok(fs.existsSync(result.rawFrameArchivePath));
     assert.equal(fs.existsSync(path.join(baseDir, "journal")), false);
   });
 
@@ -1098,6 +1103,53 @@ async function offlineSuite() {
     const readiness = await stage1Readiness({ journalDir, recordingsDir, horizonObservations: 1 });
     assert.equal(readiness.liveEvidenceGate.pass, false);
     assert.match(readiness.liveEvidenceGate.reasons.join("; "), /rawFrameSha256 is missing or invalid/);
+  });
+
+  await check("Stage 1 readiness rejects live-flagged manifests with tampered raw frame archive", async () => {
+    const now = new Date().toISOString();
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "cmcp-stage1-frame-archive-"));
+    async function* frameSource() {
+      yield stage1Heartbeat(89, 1, now);
+      yield {
+        channel: "level2",
+        sequence_num: 90,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      };
+      yield {
+        channel: "ticker",
+        sequence_num: 91,
+        timestamp: now,
+        events: [{ tickers: [{ product_id: "BTC-USD", best_bid: "100", best_ask: "102", price: "101" }] }]
+      };
+    }
+    const journalDir = path.join(baseDir, "journal");
+    const recordingsDir = path.join(baseDir, "recordings");
+    const preflight = stage1FeedPreflight({
+      env: stage1ApprovedCredentialEnv(),
+      productIds: ["BTC-USD"],
+      channels: ["level2", "ticker"]
+    });
+    const recorded = await recordStage1FrameSource({
+      frameSource: frameSource(),
+      journalDir,
+      outputRoot: recordingsDir,
+      manifestMeta: {
+        offlineOnly: false,
+        networkTouched: true,
+        keyedClientImplemented: true,
+        liveWsFlowObserved: true,
+        evidence: { preflight, testOnly: true, reason: "simulated archive tamper" }
+      }
+    });
+    fs.writeFileSync(recorded.rawFrameArchivePath, "{\"tampered\":true}\n", "utf8");
+
+    const readiness = await stage1Readiness({ journalDir, recordingsDir, horizonObservations: 1 });
+    assert.equal(readiness.liveEvidenceGate.pass, false);
+    assert.match(readiness.liveEvidenceGate.reasons.join("; "), /raw frame archive is not verified/);
   });
 }
 

@@ -197,7 +197,9 @@ fixture/backfill infrastructure only. It does not prove the live keyed feed is
 working until the supplied frames are produced by the human-approved Advanced
 Trade WS client. The manifest carries `frameEvidence` for channel inventory,
 observed sequence range, heartbeat-counter range, and a raw-frame SHA-256 digest
-so live-capture evidence can be checked without reopening raw frame files.
+so live-capture evidence can be checked without reopening raw frame files. The
+ingest path also writes `raw-frames.jsonl` beside the manifest; readiness
+verifies that archive against the digest before accepting future live evidence.
 
 `coinbase_stage1_readiness` is the full Stage 1 gate reporter. It combines the
 approval gate, journal inventory, gap events, Stage-0 breadth/quantity checks,
@@ -207,8 +209,8 @@ prove live keyed WS flow rather than offline fixture ingest.
 Live evidence is not accepted from flags alone: the manifest must also show
 nonzero frames and journal writes, zero parse/unsequenced/duplicate/out-of-order
 frames, zero journal rejects, heartbeat frame/counter evidence, a valid
-`sequence_num` range, a valid raw-frame SHA-256 digest, 100% clean provenance,
-and secret-free evidence that
+`sequence_num` range, a valid raw-frame SHA-256 digest with matching archive,
+100% clean provenance, and secret-free evidence that
 `coinbase_stage1_feed_preflight` passed before the live connector opened the
 market-data socket.
 

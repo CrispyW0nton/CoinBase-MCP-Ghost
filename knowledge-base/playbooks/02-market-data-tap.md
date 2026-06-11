@@ -81,9 +81,10 @@ keyed client until the approval phrase is present.
     supplied frames that already pass the WS-quality gate. It refuses dirty or
     gapped windows by default, writes strict-provenance JSONL rows, and emits a
     manifest with `frameEvidence` channel counts, sequence range, and heartbeat
-    counter range plus a deterministic raw-frame SHA-256 digest. Do not treat
-    ingested fixtures as live Stage 1 evidence unless the frames came from the
-    approved keyed Advanced Trade WS client.
+    counter range plus a deterministic raw-frame SHA-256 digest and
+    `raw-frames.jsonl` archive. Do not treat ingested fixtures as live Stage 1
+    evidence unless the frames came from the approved keyed Advanced Trade WS
+    client.
 17. `coinbase_stage1_readiness` or `npm run stage1:readiness` — full Stage 1
     gate reporter. It must pass before Stage 2 starts: explicit approval,
     WS-only/high-confidence journal rows, zero gap events, Stage-0 readiness on
@@ -91,8 +92,9 @@ keyed client until the approval phrase is present.
     ingests are useful tests but are not live-feed evidence. Live manifests must
     carry frame evidence: nonzero frames and journal writes, zero parse,
     unsequenced, duplicate/replayed, out-of-order, and rejected rows, heartbeat
-    evidence, sequence range, raw-frame SHA-256 digest, 100% clean provenance,
-    and a secret-free passed `coinbase_stage1_feed_preflight` snapshot.
+    evidence, sequence range, raw-frame SHA-256 digest with matching archive,
+    100% clean provenance, and a secret-free passed
+    `coinbase_stage1_feed_preflight` snapshot.
 18. Future approved keyed WS code should feed frames into
     `recordStage1FrameSource` so live capture uses the same audit, ingest,
     manifest, and readiness path as fixtures. Never set live evidence flags

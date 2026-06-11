@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { datasetStatus } from "./replay.js";
 import { stage1ApprovalStatus } from "./stage1-approval.js";
+import { inspectRawFrameArchive } from "./stage1-frame-evidence.js";
 
 const DEFAULT_SYMBOL = "BTC-USD";
 
@@ -89,6 +90,7 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
     if (!manifest) continue;
     if (manifest.stage !== "Stage 1 - Real Sequenced Data Feed") continue;
     if (manifest.symbol !== symbol) continue;
+    const rawFrameArchive = await inspectRawFrameArchive({ manifestFile: file, manifest });
     manifests.push({
       file: path.relative(process.cwd(), file),
       status: manifest.status || null,
@@ -107,6 +109,7 @@ async function inspectStage1Manifests({ recordingsDir, symbol }) {
       appendedWritten: manifest.appended?.written ?? manifest.journalStats?.written ?? null,
       journalRejected: manifest.counts?.journalRejected ?? manifest.journalStats?.rejected ?? null,
       frameEvidence: manifest.frameEvidence || null,
+      rawFrameArchive,
       provenance: manifest.provenance || null,
       evidence: manifest.evidence || null,
       startedAt: manifest.startedAt || null,
@@ -187,6 +190,10 @@ function validateStage1LiveManifestEvidence(manifest) {
     } else if (frameEvidence.heartbeatCounterRange.last < frameEvidence.heartbeatCounterRange.first) {
       reasons.push("manifest frameEvidence heartbeatCounterRange is inverted");
     }
+  }
+
+  if (manifest.rawFrameArchive?.verified !== true) {
+    reasons.push(`manifest raw frame archive is not verified: ${manifest.rawFrameArchive?.reason || "unknown"}`);
   }
 
   const provenance = manifest.provenance;

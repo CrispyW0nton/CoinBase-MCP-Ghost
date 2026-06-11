@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.26.0 - Stage 1 raw frame archive
+
+Stage 1 ingest now preserves the supplied raw WS frame window beside each
+manifest.
+
+- Added `src/stage1-frame-evidence.js` for canonical raw-frame digest and
+  archive helpers.
+- `coinbase_stage1_ingest_frames` writes `raw-frames.jsonl` next to
+  `manifest.json` and records archive metadata in the manifest.
+- `coinbase_stage1_readiness` verifies the raw frame archive digest and frame
+  count before future live manifest evidence can pass.
+- Added smoke coverage for archive creation on accepted/refused ingests and
+  tampered-archive refusal.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.25.0 - Stage 1 raw frame digest evidence
 
 Stage 1 frame evidence now includes a deterministic digest for the supplied raw

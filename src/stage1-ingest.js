@@ -7,6 +7,7 @@ import {
   parseStage1Frames,
   stage1FeedAudit
 } from "./stage1-feed-audit.js";
+import { writeRawFrameArchive } from "./stage1-frame-evidence.js";
 
 const DEFAULT_SYMBOL = "BTC-USD";
 
@@ -27,6 +28,7 @@ export async function stage1IngestFrames(args = {}) {
   await fs.mkdir(outputDir, { recursive: true });
 
   const rawFrames = Array.isArray(frames) ? frames : await loadStage1FrameFile(frameFile);
+  const rawFrameArchive = await writeRawFrameArchive(path.join(outputDir, "raw-frames.jsonl"), rawFrames);
   const parsed = parseStage1Frames({ rawFrames, symbol });
   const audit = await stage1FeedAudit({ ...args, frames: rawFrames, writeReport: false });
   const manifest = baseManifest({
@@ -36,6 +38,7 @@ export async function stage1IngestFrames(args = {}) {
     journalDir,
     outputDir,
     rawFrames,
+    rawFrameArchive,
     parsed,
     audit,
     manifestMeta
@@ -52,6 +55,7 @@ export async function stage1IngestFrames(args = {}) {
       refused: true,
       reason: manifest.refusalReason,
       manifestPath,
+      rawFrameArchivePath: path.join(outputDir, rawFrameArchive.path),
       audit
     };
   }
@@ -80,6 +84,7 @@ export async function stage1IngestFrames(args = {}) {
     ingested: true,
     refused: false,
     manifestPath,
+    rawFrameArchivePath: path.join(outputDir, rawFrameArchive.path),
     journalPath: journal.path(),
     journalStats: journal.stats(),
     appended: manifest.appended,
@@ -87,7 +92,7 @@ export async function stage1IngestFrames(args = {}) {
   };
 }
 
-function baseManifest({ symbol, startedAt, frameFile, journalDir, outputDir, rawFrames, parsed, audit, manifestMeta = {} }) {
+function baseManifest({ symbol, startedAt, frameFile, journalDir, outputDir, rawFrames, rawFrameArchive, parsed, audit, manifestMeta = {} }) {
   return {
     stage: "Stage 1 - Real Sequenced Data Feed",
     recording: false,
@@ -103,6 +108,7 @@ function baseManifest({ symbol, startedAt, frameFile, journalDir, outputDir, raw
     endedAt: null,
     frameFile: frameFile || null,
     framesInput: rawFrames.length,
+    rawFrameArchive,
     journalDir,
     outputDir,
     counts: {

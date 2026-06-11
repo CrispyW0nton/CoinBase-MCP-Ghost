@@ -150,15 +150,15 @@ It does not approve:
 10. Use `coinbase_stage1_ingest_frames` or the same underlying ingest path to
    append only clean sequenced events to JSONL with a manifest that records
    channel inventory, sequence range, heartbeat-counter range, and a raw-frame
-   SHA-256 digest.
+   SHA-256 digest. Preserve the matching raw frames in `raw-frames.jsonl`.
 11. Pass `coinbase_stage1_readiness` before Stage 2 starts.
 12. Route future live keyed frame payloads through `recordStage1FrameSource`;
     set live manifest evidence flags only when the approved keyed WS rail was
     actually used. The manifest must also include nonzero frames and journal
     writes, zero parse/unsequenced/duplicate/out-of-order frames, zero journal
     rejects, heartbeat evidence, a valid sequence range, raw-frame SHA-256
-    digest, and 100% clean provenance. It must preserve a secret-free passed
-    `coinbase_stage1_feed_preflight` snapshot as evidence.
+    digest with matching archive, and 100% clean provenance. It must preserve a
+    secret-free passed `coinbase_stage1_feed_preflight` snapshot as evidence.
 13. Call `requireStage1KeyedWsApproval` before reading credential material or
     opening any Coinbase WS socket.
 14. Replace the fail-closed `createStage1KeyedWsFrameSource` placeholder only

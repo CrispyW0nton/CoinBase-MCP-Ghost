@@ -1,10 +1,10 @@
-import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCoinbaseFrame } from "./coinbase.js";
 import { validateJournalProvenance } from "./journal.js";
 import { makeGap, serializeEvent } from "./schema.js";
+import { rawFrameDigest } from "./stage1-frame-evidence.js";
 import {
   replayEvents,
   MIN_EFFECTIVE_BREADTH,
@@ -187,20 +187,6 @@ export async function loadStage1FrameFile(frameFile) {
   if (!frameFile) return [];
   const text = await fs.readFile(path.resolve(process.cwd(), frameFile), "utf8");
   return text.split(/\r?\n/).filter(Boolean);
-}
-
-function rawFrameDigest(rawFrames) {
-  return crypto
-    .createHash("sha256")
-    .update(stableJson(rawFrames))
-    .digest("hex");
-}
-
-function stableJson(value) {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  const keys = Object.keys(value).sort();
-  return `{${keys.map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
 }
 
 function coerceFrame(raw) {
