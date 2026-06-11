@@ -201,10 +201,11 @@ so live-capture evidence can be checked without reopening raw frame files. The
 ingest path also writes `raw-frames.jsonl` beside the manifest; readiness
 verifies that archive against the digest before accepting future live evidence.
 
-`coinbase_stage1_manifest_audit` is the offline manifest/archive integrity
-check. It walks Stage 1 manifests, verifies `raw-frames.jsonl` frame counts and
-digests against `frameEvidence.rawFrameSha256`, re-derives counts,
-`frameEvidence`, and provenance from the archive, and reports summary drift
+`coinbase_stage1_manifest_audit` is the offline manifest/archive/journal
+integrity check. It walks Stage 1 manifests, verifies `raw-frames.jsonl` frame
+counts and digests against `frameEvidence.rawFrameSha256`, re-derives counts,
+`frameEvidence`, and provenance from the archive, verifies the exact
+`journalAppendEvidence` line window and digest, and reports summary drift
 without opening sockets or reading credentials.
 
 `coinbase_stage1_readiness` is the full Stage 1 gate reporter. It combines the

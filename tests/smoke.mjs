@@ -806,6 +806,8 @@ async function offlineSuite() {
     assert.equal(manifestAudit.verdict, "PASS");
     assert.equal(manifestAudit.counts.manifests, 1);
     assert.equal(manifestAudit.counts.archiveVerified, 1);
+    assert.equal(manifestAudit.counts.journalAppendVerified, 1);
+    assert.equal(manifestAudit.manifests[0].journalEvidence.appendWindow.verified, true);
     assert.equal(manifestAudit.manifests[0].derivedFromArchive.frames, frames.length);
     assert.equal(
       manifestAudit.manifests[0].derivedFromArchive.frameEvidence.rawFrameSha256,
@@ -1201,6 +1203,9 @@ async function offlineSuite() {
     const readiness = await stage1Readiness({ journalDir, recordingsDir, horizonObservations: 1 });
     assert.equal(readiness.liveEvidenceGate.pass, false);
     assert.match(readiness.liveEvidenceGate.reasons.join("; "), /journal append window is not verified/);
+    const manifestAudit = await stage1ManifestAudit({ recordingsDir });
+    assert.equal(manifestAudit.verdict, "FAIL");
+    assert.match(manifestAudit.reasons.join("; "), /journal append window is not verified/);
   });
 
   await check("Stage 1 readiness rejects live-flagged manifests with mismatched preflight subscription", async () => {

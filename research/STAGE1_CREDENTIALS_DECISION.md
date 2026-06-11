@@ -54,13 +54,12 @@ Offline fixture ingests remain test evidence only. Any future archive-backed
 live manifest must satisfy the same raw-frame archive re-derivation inside
 `coinbase_stage1_readiness` that `npm run stage1:manifest-audit` reports:
 frame counts, frame evidence, and provenance must reproduce from
-`raw-frames.jsonl`. Its `journalPath` must be readable and contain enough clean
-WS rows for the claimed appended rows, and `journalAppendEvidence` must verify
-the exact line window and digest written by the ingest. Its preflight evidence
-must also include a subscription plan for the manifest symbol with heartbeats
-and `level2`, and its `generatedAt` timestamp must be no later than the
-manifest start. A manifest marked `evidence.testOnly:true` must not count as
-live evidence.
+`raw-frames.jsonl`, and its exact `journalAppendEvidence` line window/digest
+must verify. Its `journalPath` must be readable and contain enough clean WS
+rows for the claimed appended rows. Its preflight evidence must also include a
+subscription plan for the manifest symbol with heartbeats and `level2`, and its
+`generatedAt` timestamp must be no later than the manifest start. A manifest
+marked `evidence.testOnly:true` must not count as live evidence.
 
 `npm run stage1:subscription-plan` and `coinbase_stage1_subscription_plan` are
 the offline subscribe-message contract for the future approved client. They
@@ -163,7 +162,8 @@ It does not approve:
    channel inventory, sequence range, heartbeat-counter range, and a raw-frame
    SHA-256 digest. Preserve the matching raw frames in `raw-frames.jsonl`.
 11. Pass `coinbase_stage1_manifest_audit`, including re-derived frame counts,
-    frame evidence, and provenance, for archive-backed evidence.
+    frame evidence, provenance, and exact journal append evidence, for
+    archive-backed evidence.
 12. Pass `coinbase_stage1_readiness` before Stage 2 starts.
 13. Route future live keyed frame payloads through `recordStage1FrameSource`;
    set live manifest evidence flags only when the approved keyed WS rail was

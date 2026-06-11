@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.35.0 - Stage 1 manifest audit journal append verification
+
+Standalone Stage 1 manifest audits now verify the exact journal append evidence
+that readiness already requires.
+
+- Added shared journal-evidence inspection for Stage 1 manifests.
+- `coinbase_stage1_manifest_audit` now reports `journalEvidence`, counts
+  verified append windows, and fails complete manifests whose journal path,
+  clean WS rows, symbol rows, invalid-row count, or append-window digest do not
+  support the manifest claims.
+- `coinbase_stage1_readiness` uses the same shared journal append-window
+  verifier when building manifest integrity reasons.
+- Added smoke coverage for a valid append-window audit and a tampered
+  append-window digest rejected by the standalone manifest audit.
+- No credentialed client, JWT generation, socket, SDK call, order placement,
+  stop handling, or LIVE arming was added.
+
 ## 0.34.0 - Stage 1 exact journal append evidence
 
 Stage 1 manifests now identify the exact JSONL journal rows written by an

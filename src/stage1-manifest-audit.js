@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseStage1Frames } from "./stage1-feed-audit.js";
 import { inspectRawFrameArchive, readRawFrameArchive, stableJson } from "./stage1-frame-evidence.js";
+import { inspectStage1ManifestJournal } from "./stage1-journal-evidence.js";
 
 const DEFAULT_SYMBOL = "BTC-USD";
 
@@ -22,7 +23,8 @@ export async function stage1ManifestAudit({
     if (manifest.symbol !== symbol) continue;
     const rawFrameArchive = await inspectRawFrameArchive({ manifestFile: file, manifest });
     const derivedFromArchive = await deriveStage1ArchiveEvidence({ manifestFile: file, manifest, symbol });
-    const reasons = stage1ManifestIntegrityReasons({ manifest, rawFrameArchive, derivedFromArchive });
+    const journalEvidence = await inspectStage1ManifestJournal({ manifest });
+    const reasons = stage1ManifestIntegrityReasons({ manifest, rawFrameArchive, derivedFromArchive, journalEvidence });
     manifests.push({
       file: path.relative(process.cwd(), file),
       status: manifest.status || null,
@@ -32,6 +34,7 @@ export async function stage1ManifestAudit({
       frameEvidence: manifest.frameEvidence || null,
       rawFrameArchive,
       derivedFromArchive,
+      journalEvidence,
       archiveIntegrity: {
         pass: reasons.length === 0,
         reasons
@@ -55,6 +58,7 @@ export async function stage1ManifestAudit({
     counts: {
       manifests: manifests.length,
       archiveVerified: manifests.filter(item => item.rawFrameArchive.verified).length,
+      journalAppendVerified: manifests.filter(item => item.journalEvidence?.appendWindow?.verified).length,
       archiveFailed: failing.length
     },
     reasons: failing.flatMap(item => item.archiveIntegrity.reasons.map(reason => `${item.file}: ${reason}`)),
@@ -103,7 +107,7 @@ export async function deriveStage1ArchiveEvidence({ manifestFile, manifest, symb
   }
 }
 
-export function stage1ManifestIntegrityReasons({ manifest, rawFrameArchive, derivedFromArchive }) {
+export function stage1ManifestIntegrityReasons({ manifest, rawFrameArchive, derivedFromArchive, journalEvidence }) {
   const reasons = [];
   const digest = manifest.frameEvidence?.rawFrameSha256;
   if (typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest)) {
@@ -114,6 +118,25 @@ export function stage1ManifestIntegrityReasons({ manifest, rawFrameArchive, deri
   }
   if ((manifest.counts?.frames ?? manifest.framesInput ?? 0) <= 0) {
     reasons.push("manifest has no input frames");
+  }
+  if (manifest.status === "complete") {
+    if (journalEvidence?.present !== true) {
+      reasons.push(`journal evidence is missing: ${journalEvidence?.reason || "unknown"}`);
+    } else {
+      if (journalEvidence.invalid !== 0) {
+        reasons.push(`journal has invalid JSONL rows ${journalEvidence.invalid} > 0`);
+      }
+      const appended = manifest.appended?.written ?? manifest.journalStats?.written ?? 0;
+      if (journalEvidence.cleanWsRows < appended) {
+        reasons.push(`journal clean WS rows ${journalEvidence.cleanWsRows} < appended rows ${appended}`);
+      }
+      if (journalEvidence.symbolRows < appended) {
+        reasons.push(`journal symbol rows ${journalEvidence.symbolRows} < appended rows ${appended}`);
+      }
+      if (journalEvidence.appendWindow?.verified !== true) {
+        reasons.push(`journal append window is not verified: ${journalEvidence.appendWindow?.reason || "unknown"}`);
+      }
+    }
   }
   if (derivedFromArchive) {
     if ((manifest.counts?.frames ?? manifest.framesInput ?? 0) !== derivedFromArchive.frames) {
