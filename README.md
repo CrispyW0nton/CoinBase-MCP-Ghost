@@ -199,6 +199,9 @@ instead of being silently journaled.
 journal only after the WS-quality gate passes. It is useful for fixtures,
 backfills, and acceptance tests, but it is not evidence that live Coinbase WS
 data is flowing until those frames come from the approved keyed client.
+The Stage 1 manifest records `frameEvidence` with raw channel counts, the
+observed `sequence_num` range, and the heartbeat-counter range so a future live
+capture can be reviewed without reparsing source frames.
 
 `stage1:readiness` is the full Stage 1 gate reporter. It requires approval,
 WS-only high-confidence journal rows, zero gap events, Stage-0 readiness on the

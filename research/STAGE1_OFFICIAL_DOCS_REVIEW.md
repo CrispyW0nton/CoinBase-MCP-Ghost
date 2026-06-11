@@ -76,6 +76,8 @@ socket, JWT generation, or Coinbase request was added by this review.
 - `recordStage1FrameSource` is the required downstream path for received
   frames so parser, audit, journal, manifest, and readiness behavior are shared
   with fixtures.
+- Stage 1 manifests include `frameEvidence` channel counts, sequence range, and
+  heartbeat-counter range for later review of live-capture evidence.
 - `coinbase_stage1_feed_audit` must pass on any captured frame window.
 - `coinbase_stage1_readiness` must pass before Stage 2 can begin.
 

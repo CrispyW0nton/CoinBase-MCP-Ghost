@@ -72,8 +72,9 @@ keyed client until the approval phrase is present.
     `npm run stage1:ingest -- --frames <jsonl>` — offline journal writer for
     supplied frames that already pass the WS-quality gate. It refuses dirty or
     gapped windows by default, writes strict-provenance JSONL rows, and emits a
-    manifest. Do not treat ingested fixtures as live Stage 1 evidence unless
-    the frames came from the approved keyed Advanced Trade WS client.
+    manifest with `frameEvidence` channel counts, sequence range, and heartbeat
+    counter range. Do not treat ingested fixtures as live Stage 1 evidence
+    unless the frames came from the approved keyed Advanced Trade WS client.
 15. `coinbase_stage1_readiness` or `npm run stage1:readiness` — full Stage 1
     gate reporter. It must pass before Stage 2 starts: explicit approval,
     WS-only/high-confidence journal rows, zero gap events, Stage-0 readiness on

@@ -114,6 +114,7 @@ function baseManifest({ symbol, startedAt, frameFile, journalDir, outputDir, raw
       outOfOrder: parsed.stats.outOfOrder,
       journalRejected: 0
     },
+    frameEvidence: parsed.frameEvidence,
     provenance: {
       ...parsed.provenance,
       pctClean: parsed.provenance.totalEvents

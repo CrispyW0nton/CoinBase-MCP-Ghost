@@ -526,6 +526,10 @@ async function offlineSuite() {
     assert.equal(audit.frames.heartbeatCounterGaps, 0);
     assert.equal(audit.counts.heartbeats, 1);
     assert.equal(audit.counts.l2, 2);
+    assert.equal(audit.frameEvidence.channels.heartbeats, 1);
+    assert.equal(audit.frameEvidence.channels.l2_data, 1);
+    assert.deepEqual(audit.frameEvidence.sequenceRange, { first: 9, last: 12 });
+    assert.deepEqual(audit.frameEvidence.heartbeatCounterRange, { first: 1, last: 1 });
     assert.equal(audit.provenance.pctClean, 100);
     assert.equal(audit.stage0Readiness.verdict, "NOT-READY");
     assert.match(audit.stage0Readiness.reasons.join("; "), /paired observations/);
@@ -662,6 +666,10 @@ async function offlineSuite() {
     const manifest = JSON.parse(fs.readFileSync(result.manifestPath, "utf8"));
     assert.equal(manifest.status, "complete");
     assert.equal(manifest.dataQuality, "sequenced/high-confidence");
+    assert.equal(manifest.frameEvidence.channels.heartbeats, 1);
+    assert.equal(manifest.frameEvidence.channels.level2, 1);
+    assert.deepEqual(manifest.frameEvidence.sequenceRange, { first: 29, last: 31 });
+    assert.deepEqual(manifest.frameEvidence.heartbeatCounterRange, { first: 1, last: 1 });
     assert.equal(manifest.safety.noCredentials, true);
     assert.equal(manifest.networkTouched, false);
   });

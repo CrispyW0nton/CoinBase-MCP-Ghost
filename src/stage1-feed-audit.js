@@ -40,6 +40,7 @@ export async function stage1FeedAudit(args = {}) {
     frameFile: frameFile || null,
     frames: parsed.stats,
     counts: parsed.counts,
+    frameEvidence: parsed.frameEvidence,
     provenance: {
       ...parsed.provenance,
       pctClean
@@ -79,6 +80,11 @@ export function parseStage1Frames({ rawFrames = [], symbol = DEFAULT_SYMBOL } = 
   const events = [];
   const gapEvents = [];
   const counts = { ticks: 0, l2: 0, trades: 0, candles: 0, heartbeats: 0, gaps: 0 };
+  const frameEvidence = {
+    channels: {},
+    sequenceRange: { first: null, last: null },
+    heartbeatCounterRange: { first: null, last: null }
+  };
   const provenance = {
     totalEvents: 0,
     cleanEvents: 0,
@@ -101,6 +107,9 @@ export function parseStage1Frames({ rawFrames = [], symbol = DEFAULT_SYMBOL } = 
       continue;
     }
 
+    const frameChannel = String(msg.channel || "(missing)");
+    frameEvidence.channels[frameChannel] = (frameEvidence.channels[frameChannel] || 0) + 1;
+
     if (msg.channel === "heartbeats") {
       stats.heartbeatFrames++;
       counts.heartbeats++;
@@ -115,6 +124,12 @@ export function parseStage1Frames({ rawFrames = [], symbol = DEFAULT_SYMBOL } = 
         }
         if (lastHeartbeatCounter === null || counter > lastHeartbeatCounter) {
           lastHeartbeatCounter = counter;
+        }
+        if (frameEvidence.heartbeatCounterRange.first === null) {
+          frameEvidence.heartbeatCounterRange.first = counter;
+        }
+        if (frameEvidence.heartbeatCounterRange.last === null || counter > frameEvidence.heartbeatCounterRange.last) {
+          frameEvidence.heartbeatCounterRange.last = counter;
         }
       }
     }
@@ -137,6 +152,12 @@ export function parseStage1Frames({ rawFrames = [], symbol = DEFAULT_SYMBOL } = 
         stats.outOfOrder++;
       }
       if (lastSeq === null || sequenceNum > lastSeq) lastSeq = sequenceNum;
+      if (frameEvidence.sequenceRange.first === null) {
+        frameEvidence.sequenceRange.first = sequenceNum;
+      }
+      if (frameEvidence.sequenceRange.last === null || sequenceNum > frameEvidence.sequenceRange.last) {
+        frameEvidence.sequenceRange.last = sequenceNum;
+      }
     }
 
     for (const evt of parsedEvents) {
@@ -155,6 +176,7 @@ export function parseStage1Frames({ rawFrames = [], symbol = DEFAULT_SYMBOL } = 
     gapEvents,
     stats,
     counts,
+    frameEvidence,
     provenance
   };
 }
@@ -271,6 +293,8 @@ async function writeStage1FeedAuditReport(result, { outputDir }) {
     `- Duplicate/replayed frames: ${result.frames.duplicateOrReplay}`,
     `- Heartbeat frames: ${result.frames.heartbeatFrames}`,
     `- Heartbeat counter gaps: ${result.frames.heartbeatCounterGaps}`,
+    `- Sequence range: ${rangeText(result.frameEvidence?.sequenceRange)}`,
+    `- Heartbeat counter range: ${rangeText(result.frameEvidence?.heartbeatCounterRange)}`,
     `- L2 updates: ${result.counts.l2}`,
     `- Ticks: ${result.counts.ticks}`,
     `- Trades: ${result.counts.trades}`,
@@ -289,6 +313,11 @@ async function writeStage1FeedAuditReport(result, { outputDir }) {
   ];
   await fs.writeFile(reportPath, lines.join("\n") + "\n", "utf8");
   return reportPath;
+}
+
+function rangeText(range) {
+  if (!range || range.first === null || range.last === null) return "n/a";
+  return `${range.first}..${range.last}`;
 }
 
 function heartbeatCounter(msg) {

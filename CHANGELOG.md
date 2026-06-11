@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.20.0 - Stage 1 frame evidence manifest
+
+Stage 1 audit and ingest manifests now carry compact frame-window evidence for
+future live-capture review.
+
+- Added `frameEvidence.channels` raw WS channel counts.
+- Added `frameEvidence.sequenceRange` for the first observed and highest
+  sequenced frame in the supplied window.
+- Added `frameEvidence.heartbeatCounterRange` for liveness-counter evidence.
+- Stage 1 feed-audit reports now print sequence and heartbeat-counter ranges.
+- Added smoke coverage proving accepted audit windows and ingest manifests
+  include the new evidence fields.
+- No credentialed client, JWT generation, credential read, socket, SDK call,
+  order placement, stop handling, or LIVE arming was added.
+
 ## 0.19.0 - Stage 1 duplicate sequence refusal
 
 Stage 1 feed audit now rejects duplicate or replayed WS sequence numbers.

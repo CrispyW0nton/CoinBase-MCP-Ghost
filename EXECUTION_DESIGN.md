@@ -194,7 +194,9 @@ the same parser/audit path, refuses dirty or gapped windows by default, appends
 only strict-provenance events to JSONL, and writes a Stage 1 manifest. This is
 fixture/backfill infrastructure only. It does not prove the live keyed feed is
 working until the supplied frames are produced by the human-approved Advanced
-Trade WS client.
+Trade WS client. The manifest carries `frameEvidence` for channel inventory,
+observed sequence range, and heartbeat-counter range so live-capture evidence
+can be checked without reopening raw frame files.
 
 `coinbase_stage1_readiness` is the full Stage 1 gate reporter. It combines the
 approval gate, journal inventory, gap events, Stage-0 breadth/quantity checks,

@@ -132,7 +132,8 @@ It does not approve:
    heartbeat/liveness evidence with monotonic counters, 100% clean WS
    provenance, and real L2 depth updates.
 8. Use `coinbase_stage1_ingest_frames` or the same underlying ingest path to
-   append only clean sequenced events to JSONL with a manifest.
+   append only clean sequenced events to JSONL with a manifest that records
+   channel inventory, sequence range, and heartbeat-counter range.
 9. Pass `coinbase_stage1_readiness` before Stage 2 starts.
 10. Route future live keyed frame payloads through `recordStage1FrameSource`;
    set live manifest evidence flags only when the approved keyed WS rail was
