@@ -39,6 +39,7 @@ import {
   STAGE1_APPROVAL_PHRASE,
   STAGE1_CREDENTIAL_ENVS
 } from "../src/stage1-approval.js";
+import { stage1FeedAudit } from "../src/stage1-feed-audit.js";
 
 let failures = 0;
 function check(name, fn) {
@@ -336,6 +337,71 @@ async function offlineSuite() {
     assert.equal(status.credentialMaterialPresent[STAGE1_CREDENTIAL_ENVS[1]], true);
     assert.doesNotMatch(serialized, /secret-test-material/);
     assert.doesNotMatch(serialized, /BEGIN TEST PRIVATE KEY/);
+  });
+
+  await check("Stage 1 feed audit separates WS quality from Stage-0 quantity", async () => {
+    const now = new Date().toISOString();
+    const frames = [
+      {
+        channel: "level2",
+        sequence_num: 10,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now },
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      },
+      {
+        channel: "ticker",
+        sequence_num: 11,
+        timestamp: now,
+        events: [{ tickers: [{ product_id: "BTC-USD", best_bid: "100", best_ask: "102", price: "101" }] }]
+      },
+      {
+        channel: "market_trades",
+        sequence_num: 12,
+        timestamp: now,
+        events: [{ trades: [{ product_id: "BTC-USD", side: "BUY", price: "101", size: "0.01", trade_id: "stage1-test", time: now }] }]
+      }
+    ];
+    const audit = await stage1FeedAudit({ frames, horizonObservations: 1 });
+    assert.equal(audit.offlineOnly, true);
+    assert.equal(audit.networkTouched, false);
+    assert.equal(audit.keyedClientImplemented, false);
+    assert.equal(audit.wsQualityGate.pass, true);
+    assert.equal(audit.frames.gaps, 0);
+    assert.equal(audit.counts.l2, 2);
+    assert.equal(audit.provenance.pctClean, 100);
+    assert.equal(audit.stage0Readiness.verdict, "NOT-READY");
+    assert.match(audit.stage0Readiness.reasons.join("; "), /paired observations/);
+  });
+
+  await check("Stage 1 feed audit fails on sequence gaps", async () => {
+    const now = new Date().toISOString();
+    const frames = [
+      {
+        channel: "level2",
+        sequence_num: 20,
+        timestamp: now,
+        events: [{ type: "snapshot", product_id: "BTC-USD", updates: [
+          { side: "bid", price_level: "100", new_quantity: "2", event_time: now }
+        ]}]
+      },
+      {
+        channel: "level2",
+        sequence_num: 22,
+        timestamp: now,
+        events: [{ type: "update", product_id: "BTC-USD", updates: [
+          { side: "offer", price_level: "102", new_quantity: "1", event_time: now }
+        ]}]
+      }
+    ];
+    const audit = await stage1FeedAudit({ frames });
+    assert.equal(audit.wsQualityGate.pass, false);
+    assert.equal(audit.frames.gaps, 1);
+    assert.equal(audit.gapEvents[0].expectedSeq, 21);
+    assert.equal(audit.gapEvents[0].gotSeq, 22);
+    assert.match(audit.stage0Readiness.reasons.join("; "), /sequence gaps 1 > 0/);
   });
 }
 

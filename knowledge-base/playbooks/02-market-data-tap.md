@@ -52,3 +52,10 @@ keyed client until the approval phrase is present.
     `source:"ws"` provenance, `hasSequence:true`, `sequence_num` gap detection,
     append-only journal rows, and Stage-0 readiness checks on WS-quality data.
     It does not authorize orders, REST trading, stops, or LIVE arming.
+12. `coinbase_stage1_feed_audit` or
+    `npm run stage1:feed-audit -- --frames <jsonl>` — offline acceptance
+    harness for supplied WS frame payloads. Require zero parse errors, zero
+    unsequenced frames, zero gaps, 100% clean `source:"ws"` provenance, and real
+    L2 depth before the WS-quality gate passes. Then require Stage-0 quantity
+    and breadth thresholds on the normalized WS events before any Stage 2
+    signal research can begin.

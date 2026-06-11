@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.9.0 - Stage 1 offline WS feed audit
+
+Stage 1 now has a non-credentialed feed-quality audit surface that the future
+keyed client must satisfy.
+
+- Added `coinbase_stage1_feed_audit` and `npm run stage1:feed-audit`.
+- The audit consumes supplied Coinbase Advanced Trade WS frame payloads
+  offline, normalizes them through the existing parser, detects
+  `sequence_num` gaps, verifies `source:"ws"` / high-confidence provenance,
+  and reports Stage-0 readiness on the resulting WS-quality data.
+- The audit deliberately opens no socket, validates no credentials, prints no
+  secrets, places no orders, and does not implement the keyed WS client.
+- Added smoke coverage for both a clean sequenced sample and a fatal skipped
+  sequence. A tiny clean sample can pass WS quality while still failing the
+  Stage-0 quantity gate, which keeps data quality and sample breadth separate.
+
 ## 0.8.0 - Stage 1 credentials approval gate
 
 Stage 1 is now explicitly framed as **Real Sequenced Data Feed** work, not

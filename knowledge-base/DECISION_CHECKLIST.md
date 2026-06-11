@@ -40,6 +40,10 @@ If any answer is "no" or "unknown", **stop and default to inaction**.
       `coinbase_stage1_credentials_status` reported the explicit
       `APPROVE_STAGE1_KEYED_WS_DATA_FEED_ONLY` approval phrase, and is the
       scope limited to sequenced WS data capture only?
+- [ ] If evaluating supplied Stage 1 WS frames, did
+      `coinbase_stage1_feed_audit` pass with zero parse errors, zero
+      unsequenced frames, zero gaps, 100% clean WS provenance, and Stage-0
+      readiness on WS-quality data?
 - [ ] For any non-BTC/ETH asset: did due diligence pass (tokenomics, audits,
       regulatory standing)? Default = trade only the most liquid majors.
 

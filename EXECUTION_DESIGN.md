@@ -174,6 +174,15 @@ research infrastructure only; Stage-0 readiness, walk-forward tests, deflated
 Sharpe, realistic costs, and negative-result reporting remain mandatory before
 any later execution discussion.
 
+`coinbase_stage1_feed_audit` is the non-credentialed acceptance harness for that
+future feed. It consumes supplied WS frame payloads offline and requires zero
+parse errors, zero unsequenced frames, zero sequence gaps, `source:"ws"` /
+`hasSequence:true` / `confidence:"high"` / `degraded:false` provenance, and
+real L2 depth updates before the stream-quality gate can pass. Passing that
+stream-quality gate is not enough for research: the resulting data must still
+clear the Stage-0 paired-observation, effective-breadth, and out-of-sample
+quantity thresholds.
+
 ### 3.2 Market vs. limit selection
 
 > **Harris, Ch. 6–7.** Use a **limit** order when the spread is wide relative to

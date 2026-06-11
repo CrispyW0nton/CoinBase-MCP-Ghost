@@ -36,6 +36,11 @@ The repository includes `npm run stage1:approval` and the MCP tool
 `coinbase_stage1_credentials_status` to report this gate. They are offline-only
 and never print secret values.
 
+The repository also includes `npm run stage1:feed-audit` and the MCP tool
+`coinbase_stage1_feed_audit`. They do not connect to Coinbase. They audit
+supplied WS frame payloads offline so the future keyed feed has a concrete
+acceptance contract before credentialed code exists.
+
 ## Proposed credential env names
 
 These names are placeholders for the next implementation pass and are not used
@@ -81,9 +86,11 @@ It does not approve:
    `hasSequence:true`, `confidence:"high"`, and `degraded:false`.
 5. Detect `sequence_num` gaps and fail Stage 0 readiness unless the selected
    window is gap-clean.
-6. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
+6. Pass `coinbase_stage1_feed_audit`: zero parse errors, zero unsequenced
+   frames, zero gaps, 100% clean WS provenance, and real L2 depth updates.
+7. Preserve no-lookahead replay: chronological ingest, walk-forward evaluation,
    deflated Sharpe, and realistic costs before any execution research.
-7. Leave LIVE trading disconnected until later risk, kill-switch, and human
+8. Leave LIVE trading disconnected until later risk, kill-switch, and human
    approval gates are passed.
 
 ## Knowledge-base rationale
